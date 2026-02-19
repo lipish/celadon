@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LocaleProvider } from "@/contexts/LocaleContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import RequireAuth from "@/components/RequireAuth";
 import Index from "./pages/Index";
 import ClarifyPage from "./pages/ClarifyPage";
 import PrdPage from "./pages/PrdPage";
@@ -19,24 +21,26 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LocaleProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/clarify" element={<ClarifyPage />} />
-          <Route path="/prd" element={<PrdPage />} />
-          <Route path="/dev" element={<DevPage />} />
-          <Route path="/deploy" element={<DeployPage />} />
-          <Route path="/iterate" element={<IteratePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/" element={<Index />} />
+              <Route path="/clarify" element={<RequireAuth><ClarifyPage /></RequireAuth>} />
+              <Route path="/prd" element={<RequireAuth><PrdPage /></RequireAuth>} />
+              <Route path="/dev" element={<RequireAuth><DevPage /></RequireAuth>} />
+              <Route path="/deploy" element={<RequireAuth><DeployPage /></RequireAuth>} />
+              <Route path="/iterate" element={<RequireAuth><IteratePage /></RequireAuth>} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
     </LocaleProvider>
   </QueryClientProvider>
 );

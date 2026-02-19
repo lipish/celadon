@@ -91,6 +91,12 @@ struct LoginRequest {
     password: String,
 }
 
+#[derive(Deserialize)]
+struct WaitingListRequest {
+    email: String,
+    idea: String,
+}
+
 pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> AppResult<()> {
     let state = ApiState {
         storage_dir,
@@ -99,6 +105,7 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
     let mut app = Router::new()
         .route("/api/health", get(health))
         .route("/api/start", post(start))
+        .route("/api/waiting-list", post(join_waiting_list))
         .route("/api/idea", post(idea))
         .route("/api/prd/generate", post(generate_prd))
         .route("/api/dev/run", post(run_dev))
@@ -108,7 +115,9 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
     if state.pool.is_some() {
         app = app
             .route("/api/register", post(register))
-            .route("/api/login", post(login));
+            .route("/api/login", post(login))
+            .route("/api/me", get(me))
+            .route("/api/logout", post(logout));
     }
     let app = app.with_state(state).layer(CorsLayer::permissive());
 
@@ -283,5 +292,41 @@ async fn status(
     let user_id = resolve_user_id(&state, &headers).await?;
     let service = make_service(&state, user_id).await?;
     let out = service.status(&session_id).map_err(ApiError::from)?;
+    Ok(Json(out))
+}
+
+async fn me(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+) -> ApiResult {
+    let pool = state.pool.as_ref().ok_or_else(|| ApiError("未启用用户系统".to_string()))?;
+    let user_id = resolve_user_id(&state, &headers)
+        .await?
+        .ok_or_else(|| ApiError("需要登录".to_string()))?;
+    let email = auth::get_user_email(pool, user_id)
+        .await
+        .map_err(|e| ApiError(e.to_string()))?;
+    Ok(Json(json!({ "email": email })))
+}
+
+async fn logout(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+) -> ApiResult {
+    let pool = state.pool.as_ref().ok_or_else(|| ApiError("未启用用户系统".to_string()))?;
+    let token = bearer_token_from_headers(&headers)
+        .ok_or_else(|| ApiError("需要登录".to_string()))?;
+    auth::logout(pool, token)
+        .await
+        .map_err(|e| ApiError(e.to_string()))?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn join_waiting_list(
+    State(state): State<ApiState>,
+    Json(req): Json<WaitingListRequest>,
+) -> ApiResult {
+    let service = make_service(&state, None).await?;
+    let out = service.join_waiting_list(req.email, req.idea).await.map_err(ApiError::from)?;
     Ok(Json(out))
 }

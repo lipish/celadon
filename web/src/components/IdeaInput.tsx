@@ -6,6 +6,9 @@ interface IdeaInputProps {
   onSubmit?: (idea: string) => void;
   className?: string;
   disabled?: boolean;
+  loading?: boolean;
+  error?: string;
+  defaultValue?: string;
 }
 
 const placeholders = [
@@ -15,8 +18,8 @@ const placeholders = [
   "帮助工程师追踪技术债务并自动生成重构建议的工具...",
 ];
 
-export function IdeaInput({ onSubmit, className, disabled }: IdeaInputProps) {
-  const [value, setValue] = useState("");
+export function IdeaInput({ onSubmit, className, disabled, loading, error, defaultValue }: IdeaInputProps) {
+  const [value, setValue] = useState(defaultValue ?? "");
   const [isFocused, setIsFocused] = useState(false);
   const [placeholderIndex] = useState(() =>
     Math.floor(Math.random() * placeholders.length)
@@ -94,6 +97,11 @@ export function IdeaInput({ onSubmit, className, disabled }: IdeaInputProps) {
       </div>
 
       {/* Footer */}
+      {error && (
+        <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20 text-destructive text-[10px] font-mono">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between px-4 py-3 border-t border-border">
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-muted-foreground/50">
@@ -107,15 +115,15 @@ export function IdeaInput({ onSubmit, className, disabled }: IdeaInputProps) {
 
         <button
           onClick={handleSubmit}
-          disabled={!isReady || disabled}
+          disabled={!isReady || disabled || loading}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono font-semibold transition-all duration-200",
-            isReady && !disabled
+            isReady && !disabled && !loading
               ? "bg-celadon text-primary-foreground hover:bg-celadon-glow shadow-glow cursor-pointer"
               : "bg-surface-3 text-muted-foreground cursor-not-allowed"
           )}
         >
-          {disabled ? (
+          {loading || disabled ? (
             <>
               <Loader2 size={14} className="animate-spin" />
               <span>正在启动...</span>

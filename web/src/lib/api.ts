@@ -4,7 +4,7 @@
  * 若存在 token 则在请求头中携带 Authorization: Bearer <token>
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const TOKEN_KEY = "celadon_token";
 
 type ApiData = Record<string, unknown>;
@@ -34,22 +34,47 @@ async function postJson(path: string, payload: ApiData): Promise<ApiData> {
     headers: authHeaders(),
     body: JSON.stringify(payload),
   });
-  const data = (await response.json()) as ApiData;
+
   if (!response.ok) {
-    throw new Error(String(data.error ?? `请求失败: ${response.status}`));
+    let errorMsg = `请求失败: ${response.status}`;
+    try {
+      const data = await response.json();
+      errorMsg = String(data.error ?? errorMsg);
+    } catch {
+      // 非 JSON 错误 body
+      if (response.status === 404) errorMsg = "接口不存在 (404)，请检查后端是否开启了数据库模式";
+    }
+    throw new Error(errorMsg);
   }
-  return data;
+
+  try {
+    return (await response.json()) as ApiData;
+  } catch {
+    throw new Error("服务端未返回有效的 JSON 数据");
+  }
 }
 
 async function getJson(path: string): Promise<ApiData> {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: authHeaders(),
   });
-  const data = (await response.json()) as ApiData;
+
   if (!response.ok) {
-    throw new Error(String(data.error ?? `请求失败: ${response.status}`));
+    let errorMsg = `请求失败: ${response.status}`;
+    try {
+      const data = await response.json();
+      errorMsg = String(data.error ?? errorMsg);
+    } catch {
+      if (response.status === 404) errorMsg = "接口不存在 (404)";
+    }
+    throw new Error(errorMsg);
   }
-  return data;
+
+  try {
+    return (await response.json()) as ApiData;
+  } catch {
+    throw new Error("服务端未返回有效的 JSON 数据");
+  }
 }
 
 export interface StartResult {
@@ -166,4 +191,23 @@ export async function apiRegister(email: string, password: string): Promise<Auth
 export async function apiLogin(email: string, password: string): Promise<AuthResult> {
   const data = await postJson("/api/login", { email, password });
   return data as unknown as AuthResult;
+}
+
+export async function apiMe(): Promise<{ email: string }> {
+  const data = await getJson("/api/me");
+  return data as unknown as { email: string };
+}
+
+export async function apiJoinWaitingList(email: string, idea: string) {
+  const data = await postJson("/api/waiting-list", { email, idea });
+  return data;
+}
+
+export async function apiLogout(): Promise<void> {
+  try {
+    await postJson("/api/logout", {});
+  } catch {
+    // 即使服务端失败也清除本地 token
+  }
+  clearStoredToken();
 }

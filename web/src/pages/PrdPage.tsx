@@ -23,30 +23,30 @@ interface TocItem {
 
 const STAGES = [
   { id: "clarify", sub: "Clarify", Icon: MessageSquare },
-  { id: "prd",     sub: "PRD",     Icon: FileText       },
-  { id: "dev",     sub: "Dev",     Icon: Code2          },
-  { id: "deploy",  sub: "Deploy",  Icon: Rocket         },
-  { id: "iterate", sub: "Iterate", Icon: RefreshCw      },
+  { id: "prd", sub: "PRD", Icon: FileText },
+  { id: "dev", sub: "Dev", Icon: Code2 },
+  { id: "deploy", sub: "Deploy", Icon: Rocket },
+  { id: "iterate", sub: "Iterate", Icon: RefreshCw },
 ];
 
 function PipelineBar() {
   return (
     <div className="flex items-center gap-0">
       {STAGES.map((s, i) => {
-        const done   = i === 0;               // clarify = done
+        const done = i === 0;               // clarify = done
         const active = i === 1;               // prd = active
         return (
           <div key={s.id} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
               <div className={cn(
                 "w-7 h-7 rounded-full border flex items-center justify-center transition-all",
-                done   && "border-celadon bg-celadon/15",
+                done && "border-celadon bg-celadon/15",
                 active && "border-celadon bg-celadon/10",
                 !done && !active && "border-border bg-surface-2",
               )}>
-                {done   ? <CheckCircle2 size={13} className="text-celadon" /> :
-                 active ? <Loader2 size={13} className="text-celadon animate-spin" /> :
-                          <s.Icon size={12} className="text-muted-foreground/30" />}
+                {done ? <CheckCircle2 size={13} className="text-celadon" /> :
+                  active ? <Loader2 size={13} className="text-celadon animate-spin" /> :
+                    <s.Icon size={12} className="text-muted-foreground/30" />}
               </div>
               <span className={cn(
                 "text-[9px] font-mono",
@@ -277,7 +277,7 @@ export default function PrdPage() {
   const { t, locale, setLocale } = useLocale();
   const state = location.state as { sessionId?: string; idea?: string } | null;
   const sessionId = state?.sessionId ?? "";
-  const idea = state?.idea ?? "未知项目";
+  const idea = state?.idea ?? t("unknownProject");
 
   const [prdContent, setPrdContent] = useState("");
   const [toc, setToc] = useState<TocItem[]>([]);
@@ -299,15 +299,15 @@ export default function PrdPage() {
         const raw = res.content;
         const empty = raw == null || (typeof raw === "string" && raw.trim() === "");
         const content = empty
-          ? "# PRD\n\n暂无内容\n\n请确认后端已配置 LLM（如 DEEPSEEK_API_KEY），并重试「生成 PRD」。"
+          ? `# ${t("prd")}\n\n${t("prdNoContent")}\n\n${t("prdNoContentHint")}`
           : (raw as string);
         setPrdContent(content);
         setWordCount(content.split(/\s+/).filter(Boolean).length);
-        if (empty) setError("PRD 未返回内容，请检查后端 LLM 配置或重试");
+        if (empty) setError(t("prdNoContent"));
       })
       .catch((e) => {
-        setError(e instanceof Error ? e.message : "生成失败");
-        setPrdContent("# PRD\n\n生成失败，请返回澄清阶段重试。");
+        setError(e instanceof Error ? e.message : t("prdError"));
+        setPrdContent(`# ${t("prd")}\n\n${t("prdErrorHint")}`);
       })
       .finally(() => setGenerating(false));
   }, [sessionId, navigate]);
@@ -321,7 +321,7 @@ export default function PrdPage() {
       const m = line.match(/^(#{1,3})\s+(.+)/);
       if (m) {
         const level = m[1].length;
-        const text  = m[2].replace(/\*\*/g, "").replace(/`/g, "").trim();
+        const text = m[2].replace(/\*\*/g, "").replace(/`/g, "").trim();
         items.push({ id: slugify(text), text, level });
       }
     }
@@ -435,7 +435,7 @@ export default function PrdPage() {
               <div className="space-y-6 animate-pulse">
                 <div className="flex items-center gap-3 mb-8">
                   <Loader2 size={16} className="text-celadon animate-spin" />
-                  <span className="text-sm font-mono text-celadon">正在生成 PRD 文档...</span>
+                  <span className="text-sm font-mono text-celadon">{t("prdGenerating")}</span>
                 </div>
                 <div className="h-8 bg-surface-2 rounded-lg w-3/4" />
                 <div className="h-4 bg-surface-2 rounded w-1/2" />
@@ -454,10 +454,10 @@ export default function PrdPage() {
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                   <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-celadon/10 border border-celadon/25">
                     <div className="w-1.5 h-1.5 rounded-full bg-celadon animate-pulse" />
-                    <span className="text-[10px] font-mono text-celadon">已生成 · 草稿</span>
+                    <span className="text-[10px] font-mono text-celadon">{t("prdSuccess")} · {t("prdDraft")}</span>
                   </div>
                   <span className="text-[10px] font-mono text-muted-foreground/40">
-                    {wordCount.toLocaleString()} 词 · {toc.length} 个章节
+                    {wordCount.toLocaleString()} {t("prdWords")} · {toc.length} {t("prdChapter")}
                   </span>
                   <div className="ml-auto flex items-center gap-1.5">
                     <Download size={11} className="text-muted-foreground/40" />
@@ -472,15 +472,15 @@ export default function PrdPage() {
                 <div className="mt-16 pt-8 border-t border-border">
                   <div className="rounded-2xl border border-celadon/25 bg-celadon/6 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                      <div className="text-sm font-mono font-semibold text-foreground mb-1">PRD 已就绪</div>
-                      <div className="text-xs text-muted-foreground">确认需求文档后，Celadon 将启动 Zene 执行开发任务</div>
+                      <div className="text-sm font-mono font-semibold text-foreground mb-1">{t("prdReady")}</div>
+                      <div className="text-xs text-muted-foreground">{t("prdReadyDesc")}</div>
                     </div>
                     <button
                       onClick={() => navigate("/dev", { state: { idea, sessionId } })}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-celadon text-primary-foreground text-sm font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow flex-shrink-0"
                     >
                       <Code2 size={14} />
-                      <span>启动开发</span>
+                      <span>{t("startDev")}</span>
                     </button>
                   </div>
                 </div>
@@ -492,13 +492,13 @@ export default function PrdPage() {
         {/* ── Right meta panel ──────────────────────────────────────────────── */}
         <aside className="hidden 2xl:flex flex-col w-56 flex-shrink-0 border-l border-border bg-surface-1/40 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto p-4 gap-4">
           <div>
-            <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-3">文档信息</div>
+            <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-3">{t("prdInfo")}</div>
             <div className="space-y-2 text-xs font-mono">
               {[
-                ["版本", "v0.1.0"],
-                ["状态", "草稿"],
-                ["生成方式", "Celadon AI"],
-                ["模板", "Standard PRD"],
+                [t("prdVersion"), "v0.1.0"],
+                [t("prdStatus"), t("prdDraft")],
+                [t("prdMethod"), "Celadon AI"],
+                [t("prdTemplate"), t("prdStandard")],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-muted-foreground/50">{k}</span>
@@ -509,7 +509,7 @@ export default function PrdPage() {
           </div>
 
           <div>
-            <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-3">章节</div>
+            <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-3">{t("prdChapter")}</div>
             <div className="space-y-1">
               {generating ? (
                 [60, 75, 50].map((w, i) => (
@@ -526,7 +526,7 @@ export default function PrdPage() {
           </div>
 
           <div className="mt-auto">
-            <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-2">快速操作</div>
+            <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-2">{t("prdQuickAction")}</div>
             <div className="space-y-1.5">
               {!generating && <CopyButton text={prdContent} />}
             </div>

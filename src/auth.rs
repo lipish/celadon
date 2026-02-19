@@ -33,7 +33,7 @@ pub async fn register(pool: &Pool, email: &str, password: &str) -> AppResult<Uui
     Ok(row.get::<Uuid, _>("id"))
 }
 
-/// 登录：校验密码，写入 user_tokens，返回 token
+/// 登录：校验密码，写入 user_tokens（含过期时间），返回 (user_id, token)
 pub async fn login(pool: &Pool, email: &str, password: &str) -> AppResult<(Uuid, Uuid)> {
     let email = email.trim().to_lowercase();
     let row = sqlx::query_as::<_, (Uuid, String)>(
@@ -50,24 +50,47 @@ pub async fn login(pool: &Pool, email: &str, password: &str) -> AppResult<(Uuid,
         return Err("邮箱或密码错误".into());
     }
     let token = Uuid::new_v4();
-    sqlx::query("INSERT INTO user_tokens (token, user_id) VALUES ($1, $2)")
-        .bind(token)
-        .bind(user_id)
-        .execute(pool)
-        .await
-        .map_err(|e| format!("写入 token 失败: {e}"))?;
+    sqlx::query(
+        "INSERT INTO user_tokens (token, user_id, expires_at) VALUES ($1, $2, now() + INTERVAL '7 days')",
+    )
+    .bind(token)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("写入 token 失败: {e}"))?;
     Ok((user_id, token))
 }
 
-/// 校验 Bearer token，返回 user_id
+/// 校验 Bearer token（含过期检查），返回 user_id
 pub async fn verify_token(pool: &Pool, token: Uuid) -> AppResult<Uuid> {
     let row = sqlx::query_as::<_, (Uuid,)>(
-        "SELECT user_id FROM user_tokens WHERE token = $1",
+        "SELECT user_id FROM user_tokens WHERE token = $1 AND expires_at > now()",
     )
     .bind(token)
     .fetch_optional(pool)
     .await
     .map_err(|e| format!("token 校验失败: {e}"))?
     .ok_or_else(|| err_msg("无效或过期的登录状态，请重新登录"))?;
+    Ok(row.0)
+}
+
+/// 登出：删除指定 token
+pub async fn logout(pool: &Pool, token: Uuid) -> AppResult<()> {
+    sqlx::query("DELETE FROM user_tokens WHERE token = $1")
+        .bind(token)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("登出失败: {e}"))?;
+    Ok(())
+}
+
+/// 获取用户邮箱
+pub async fn get_user_email(pool: &Pool, user_id: Uuid) -> AppResult<String> {
+    let row = sqlx::query_as::<_, (String,)>("SELECT email FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| format!("查询用户失败: {e}"))?
+        .ok_or_else(|| err_msg("用户不存在"))?;
     Ok(row.0)
 }

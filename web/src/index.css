@@ -9,6 +9,21 @@ All colors MUST be HSL.
 */
 
 @layer base {
+
+  html,
+  body {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE/Edge */
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+    /* Chrome/Safari/Webkit */
+  }
+
   :root {
     /* Celadon dark theme */
     --background: 222 22% 5%;
@@ -96,7 +111,9 @@ All colors MUST be HSL.
     -moz-osx-font-smoothing: grayscale;
   }
 
-  code, pre, .mono {
+  code,
+  pre,
+  .mono {
     font-family: var(--font-mono);
   }
 }
@@ -158,20 +175,39 @@ All colors MUST be HSL.
   }
 
   @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0;
+    }
   }
 
   /* Scan line animation */
   @keyframes scan {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
+    0% {
+      transform: translateY(-100%);
+    }
+
+    100% {
+      transform: translateY(100vh);
+    }
   }
 
   /* Pulse glow */
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 8px hsl(var(--celadon) / 0.4); }
-    50% { box-shadow: 0 0 20px hsl(var(--celadon) / 0.7), 0 0 40px hsl(var(--celadon) / 0.3); }
+
+    0%,
+    100% {
+      box-shadow: 0 0 8px hsl(var(--celadon) / 0.4);
+    }
+
+    50% {
+      box-shadow: 0 0 20px hsl(var(--celadon) / 0.7), 0 0 40px hsl(var(--celadon) / 0.3);
+    }
   }
 
   .animate-pulse-glow {
@@ -180,14 +216,26 @@ All colors MUST be HSL.
 
   /* Stage indicator animation */
   @keyframes stage-progress {
-    from { width: 0%; }
-    to { width: 100%; }
+    from {
+      width: 0%;
+    }
+
+    to {
+      width: 100%;
+    }
   }
 
   /* Fade slide up */
   @keyframes fade-slide-up {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .animate-fade-slide-up {

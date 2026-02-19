@@ -123,6 +123,18 @@ impl CeladonService {
         }))
     }
 
+    pub async fn join_waiting_list(&self, email: String, idea: String) -> AppResult<Value> {
+        let pool = self.pool.as_ref().ok_or_else(|| "数据库未启用".to_string())?;
+        sqlx::query("INSERT INTO waiting_list (email, idea) VALUES (?, ?)")
+            .bind(email)
+            .bind(idea)
+            .execute(pool)
+            .await
+            .map_err(|e| format!("写入等待列表失败: {e}"))?;
+
+        Ok(json!({ "ok": true }))
+    }
+
     pub async fn append_idea(&mut self, session_id: &str, text: String) -> AppResult<Value> {
         let session = self
             .state

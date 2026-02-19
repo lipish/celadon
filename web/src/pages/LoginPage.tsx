@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { apiStart } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiLogin, setStoredToken } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Zap } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -18,9 +20,24 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await apiLogin(email.trim(), password);
-      setStoredToken(res.token);
-      navigate("/", { replace: true });
+      await login(email.trim(), password);
+
+      const pendingIdea = sessionStorage.getItem("pending_idea");
+      if (pendingIdea) {
+        sessionStorage.removeItem("pending_idea");
+        const res = await apiStart(pendingIdea);
+        navigate("/clarify", {
+          state: {
+            idea: pendingIdea,
+            sessionId: res.session_id,
+            projectName: res.project_name,
+            initialConversation: res.conversation,
+          },
+          replace: true
+        });
+      } else {
+        navigate("/", { replace: true });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "登录失败");
     } finally {
