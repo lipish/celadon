@@ -8,6 +8,7 @@ import {
   Copy, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/contexts/LocaleContext";
 import { apiGeneratePrd } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -251,6 +252,7 @@ function PrdMarkdown({ content }: { content: string }) {
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useLocale();
   const copy = async () => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
@@ -262,7 +264,7 @@ function CopyButton({ text }: { text: string }) {
       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-1 text-xs font-mono text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 transition-all"
     >
       {copied ? <Check size={12} className="text-celadon" /> : <Copy size={12} />}
-      {copied ? "已复制" : "复制 MD"}
+      {copied ? t("copied") : t("copyMd")}
     </button>
   );
 }
@@ -272,6 +274,7 @@ function CopyButton({ text }: { text: string }) {
 export default function PrdPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, locale, setLocale } = useLocale();
   const state = location.state as { sessionId?: string; idea?: string } | null;
   const sessionId = state?.sessionId ?? "";
   const idea = state?.idea ?? "未知项目";
@@ -361,7 +364,7 @@ export default function PrdPage() {
             className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
           >
             <ArrowLeft size={13} />
-            <span className="hidden sm:inline">澄清</span>
+            <span className="hidden sm:inline">{t("clarify")}</span>
           </button>
 
           <div className="flex-1 flex items-center justify-center">
@@ -371,13 +374,17 @@ export default function PrdPage() {
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+              <button type="button" onClick={() => setLocale("zh")} className={`px-2 py-0.5 text-xs font-mono rounded ${locale === "zh" ? "bg-celadon text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>中</button>
+              <button type="button" onClick={() => setLocale("en")} className={`px-2 py-0.5 text-xs font-mono rounded ${locale === "en" ? "bg-celadon text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>EN</button>
+            </div>
             {!generating && <CopyButton text={prdContent} />}
             <button
               onClick={() => navigate("/dev", { state: { idea, sessionId } })}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-celadon text-primary-foreground text-xs font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow"
             >
               <Code2 size={12} />
-              <span>进入开发</span>
+              <span>{t("enterDev")}</span>
             </button>
           </div>
         </div>
@@ -389,13 +396,13 @@ export default function PrdPage() {
         <aside className="hidden xl:flex flex-col w-64 flex-shrink-0 border-r border-border bg-surface-1/40 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto">
           <div className="p-4 border-b border-border">
             <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-1">
-              当前项目
+              {t("currentProject")}
             </div>
             <div className="text-xs font-mono text-foreground truncate">{shortTitle}</div>
           </div>
           <div className="p-3 flex-1">
             <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-2 px-1">
-              章节
+              {t("sections")}
             </div>
             {generating ? (
               <div className="flex flex-col gap-2 mt-2">

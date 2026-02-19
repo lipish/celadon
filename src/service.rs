@@ -1,5 +1,6 @@
 use crate::clients::{LlmGateway, ZeneClient};
 use crate::common::AppResult;
+use crate::db;
 use crate::models::{
     ConversationTurn, DeploymentRun, IdeaEvent, PrdVersion, Project, Session, Stage, StateStore,
     TaskRun,
@@ -15,6 +16,8 @@ pub struct CeladonService {
     state: StateStore,
     zene_client: ZeneClient,
     llm_gateway: LlmGateway,
+    pool: Option<db::Pool>,
+    user_id: Option<Uuid>,
 }
 
 impl CeladonService {
@@ -35,7 +38,40 @@ impl CeladonService {
             state,
             zene_client: ZeneClient::from_env(),
             llm_gateway,
+            pool: None,
+            user_id: None,
         })
+    }
+
+    /// 从数据库加载对应用户状态（需已配置 DATABASE_URL）
+    pub async fn load_with_db(
+        storage_dir: PathBuf,
+        pool: db::Pool,
+        user_id: Uuid,
+    ) -> AppResult<Self> {
+        let mut state = db::load_user_state(&pool, user_id).await?;
+        migrate_idea_events_to_conversation(&mut state);
+        let user_dir = storage_dir.join(user_id.to_string());
+        fs::create_dir_all(&user_dir)?;
+        let llm_gateway = LlmGateway::from_env()
+            .map_err(|e| format!("{e}. 请设置 DEEPSEEK_API_KEY 环境变量"))?;
+        Ok(Self {
+            storage_dir: user_dir,
+            state,
+            zene_client: ZeneClient::from_env(),
+            llm_gateway,
+            pool: Some(pool),
+            user_id: Some(user_id),
+        })
+    }
+
+    async fn persist(&self) -> AppResult<()> {
+        if let (Some(pool), Some(uid)) = (self.pool.as_ref(), self.user_id) {
+            db::save_user_state(pool, uid, &self.state).await?;
+        } else {
+            self.save()?;
+        }
+        Ok(())
     }
 
     pub async fn start(&mut self, idea: String, name: Option<String>) -> AppResult<Value> {
@@ -71,7 +107,7 @@ impl CeladonService {
             .await?;
         self.append_conversation_turn(&session_id, "assistant", &assistant_reply)?;
         self.touch_project(&project_id);
-        self.save()?;
+        self.persist().await?;
 
         Ok(json!({
             "message": "project/session created",
@@ -111,7 +147,7 @@ impl CeladonService {
             s.context_snapshot = text.clone();
         }
         self.touch_project(&project_id);
-        self.save()?;
+        self.persist().await?;
 
         Ok(json!({
             "message": "idea appended",
@@ -207,7 +243,7 @@ impl CeladonService {
             session_ref.context_snapshot = format!("PRD v{next_version} ready");
         }
         self.touch_project(&project.id);
-        self.save()?;
+        self.persist().await?;
 
         Ok(json!({
             "message": "prd generated",
@@ -289,7 +325,7 @@ impl CeladonService {
             session_ref.context_snapshot = final_instruction.clone();
         }
         self.touch_project(&project.id);
-        self.save()?;
+        self.persist().await?;
 
         Ok(json!({
             "message": if dry_run {
@@ -305,7 +341,7 @@ impl CeladonService {
         }))
     }
 
-    pub fn run_deploy(&mut self, session_id: &str, env: String) -> AppResult<Value> {
+    pub async fn run_deploy(&mut self, session_id: &str, env: String) -> AppResult<Value> {
         let session = self
             .state
             .sessions
@@ -343,7 +379,7 @@ impl CeladonService {
             session_ref.context_snapshot = format!("deployed to {env}");
         }
         self.touch_project(&project.id);
-        self.save()?;
+        self.persist().await?;
 
         Ok(json!({
             "message": "deployment recorded",
@@ -353,6 +389,36 @@ impl CeladonService {
             "version": prd_version,
             "result": "SIMULATED_SUCCESS"
         }))
+    }
+
+    /// 列出所有项目及其最近会话，用于首页「继续之前的工作」
+    pub fn list_projects(&self) -> AppResult<Value> {
+        let mut list: Vec<Value> = self
+            .state
+            .projects
+            .values()
+            .filter_map(|project| {
+                let session = self
+                    .state
+                    .sessions
+                    .values()
+                    .find(|s| s.project_id == project.id)?;
+                Some(json!({
+                    "project_id": project.id,
+                    "name": project.name,
+                    "status": project.status,
+                    "updated_at": project.updated_at,
+                    "session_id": session.session_id,
+                    "stage": session.stage
+                }))
+            })
+            .collect();
+        list.sort_by(|a, b| {
+            let a_t = a["updated_at"].as_str().unwrap_or("");
+            let b_t = b["updated_at"].as_str().unwrap_or("");
+            b_t.cmp(a_t)
+        });
+        Ok(json!({ "projects": list }))
     }
 
     pub fn status(&self, session_id: &str) -> AppResult<Value> {

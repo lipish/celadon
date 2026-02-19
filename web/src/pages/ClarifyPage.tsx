@@ -5,6 +5,7 @@ import {
   ChevronRight, MessageSquare, FileText, Code2, Rocket, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/contexts/LocaleContext";
 import { apiAppendIdea, apiStatus } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -148,6 +149,7 @@ function convToMessages(conv: Array<{ role: string; content: string }>): Message
 export default function ClarifyPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, locale, setLocale } = useLocale();
   const state = location.state as {
     idea?: string;
     sessionId?: string;
@@ -242,12 +244,16 @@ export default function ClarifyPage() {
             className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft size={13} />
-            <span>返回</span>
+            <span>{t("back")}</span>
           </button>
           <div className="hidden sm:flex items-center">
             <PipelineMini done={0} />
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+              <button type="button" onClick={() => setLocale("zh")} className={`px-2 py-0.5 text-xs font-mono rounded ${locale === "zh" ? "bg-celadon text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>中</button>
+              <button type="button" onClick={() => setLocale("en")} className={`px-2 py-0.5 text-xs font-mono rounded ${locale === "en" ? "bg-celadon text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>EN</button>
+            </div>
             <div className="w-6 h-6 rounded-md bg-celadon flex items-center justify-center">
               <Zap size={12} className="text-primary-foreground" />
             </div>
@@ -257,7 +263,7 @@ export default function ClarifyPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-celadon text-primary-foreground text-xs font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow"
             >
               <FileText size={12} />
-              <span>生成 PRD</span>
+              <span>{t("generatePrd")}</span>
               <ChevronRight size={12} />
             </button>
           </div>
@@ -285,9 +291,9 @@ export default function ClarifyPage() {
               <Zap size={15} className="text-celadon" />
             </div>
             <div>
-              <div className="text-sm font-mono font-semibold text-foreground">Celadon · 需求澄清</div>
+              <div className="text-sm font-mono font-semibold text-foreground">Celadon · {t("clarifyTitle")}</div>
               <div className="text-[10px] font-mono text-muted-foreground/50">
-                {isTyping ? "正在思考..." : "与 AI 多轮对话澄清需求"}
+                {isTyping ? t("thinking") : t("clarifySubtitle")}
               </div>
             </div>
           </div>

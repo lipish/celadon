@@ -1,7 +1,9 @@
 mod api;
+mod auth;
 mod cli;
 mod clients;
 mod common;
+mod db;
 mod models;
 mod service;
 mod utils;
@@ -20,7 +22,15 @@ async fn main() -> AppResult<()> {
 
     let output = match cli.command {
         Commands::Serve { port } => {
-            api::serve(storage, port).await?;
+            let pool = match std::env::var("DATABASE_URL") {
+                Ok(url) => Some(
+                    db::init_pool(&url)
+                        .await
+                        .map_err(|e| format!("数据库: {e}"))?,
+                ),
+                Err(_) => None,
+            };
+            api::serve(storage, port, pool).await?;
             return Ok(());
         }
         command => {
@@ -42,7 +52,9 @@ async fn main() -> AppResult<()> {
                         dry_run,
                     } => service.run_dev(&session_id, instruction, dry_run).await?,
                 },
-                Commands::Deploy { session_id, env } => service.run_deploy(&session_id, env)?,
+                Commands::Deploy { session_id, env } => {
+                    service.run_deploy(&session_id, env).await?
+                }
                 Commands::Status { session_id } => service.status(&session_id)?,
                 Commands::Serve { .. } => unreachable!(),
             }

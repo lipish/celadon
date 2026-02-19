@@ -1,64 +1,65 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { IdeaInput } from "@/components/IdeaInput";
-import { apiStart } from "@/lib/api";
+import { apiStart, apiProjects, getStoredToken, clearStoredToken, type ProjectItem } from "@/lib/api";
 import { PipelineStages } from "@/components/PipelineStages";
-import { ProjectCard } from "@/components/ProjectCard";
-import { StageDetail } from "@/components/StageDetail";
+import { useLocale } from "@/contexts/LocaleContext";
 import { Zap, Github, Terminal, ChevronRight, ArrowUpRight } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 
-const DEMO_PROJECTS = [
-  {
-    name: "saas-billing-dashboard",
-    description: "帮助独立开发者管理 SaaS 订阅与账单的后台管理系统，支持多货币与税率配置",
-    activeStage: "dev",
-    completedStages: ["clarify", "prd"],
-    lastActivity: "3 分钟前",
-    commitCount: 12,
-  },
-  {
-    name: "ai-code-reviewer",
-    description: "基于大模型的代码审查工具，自动检测安全漏洞、性能问题和代码规范",
-    activeStage: undefined,
-    completedStages: ["clarify", "prd", "dev", "deploy"],
-    lastActivity: "2 小时前",
-    commitCount: 47,
-    deployUrl: "https://example.com",
-  },
-  {
-    name: "openapi-collab",
-    description: "实时协作的 API 设计平台，支持团队共同编写 OpenAPI 3.1 规范",
-    activeStage: "clarify",
-    completedStages: [],
-    lastActivity: "刚刚",
-    commitCount: 0,
-  },
-];
+function stageToRoute(stage: string): string {
+  switch (stage) {
+    case "CLARIFYING":
+      return "/clarify";
+    case "PRD_CONFIRMED":
+      return "/prd";
+    case "DEVELOPING":
+    case "TESTING":
+      return "/dev";
+    case "DEPLOYING":
+      return "/deploy";
+    case "DELIVERED":
+      return "/iterate";
+    default:
+      return "/clarify";
+  }
+}
 
-const DEMO_LOGS = [
-  { type: "cmd" as const, text: "zene plan --task 'Implement billing module'", time: "12:01" },
-  { type: "info" as const, text: "Planner: 分解任务为 8 个子任务", time: "12:01" },
-  { type: "info" as const, text: "Executor: 生成数据库 schema (users, subscriptions, invoices)", time: "12:02" },
-  { type: "success" as const, text: "schema.prisma 已写入", time: "12:02" },
-  { type: "cmd" as const, text: "zene exec --subtask 'Build REST API endpoints'", time: "12:03" },
-  { type: "info" as const, text: "Executor: 编写 /api/subscriptions CRUD", time: "12:03" },
-  { type: "success" as const, text: "routes/subscriptions.ts 已写入 (243 行)", time: "12:04" },
-  { type: "info" as const, text: "Reflector: 检测到缺少认证中间件，自动修复...", time: "12:04" },
-  { type: "success" as const, text: "middleware/auth.ts 已写入", time: "12:05" },
-];
+function formatUpdatedAt(updated_at: string, t: (k: string) => string): string {
+  if (!updated_at) return t("justNow");
+  const d = new Date(updated_at);
+  const diff = (Date.now() - d.getTime()) / 60000;
+  if (diff < 1) return t("justNow");
+  if (diff < 60) return `${Math.floor(diff)} ${t("minutesAgo")}`;
+  return `${Math.floor(diff / 60)} ${t("hoursAgo")}`;
+}
 
 export default function Index() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t, locale, setLocale } = useLocale();
   const clarificationDone = (location.state as { clarificationDone?: boolean })?.clarificationDone;
   const returnedIdea = (location.state as { idea?: string })?.idea ?? "";
 
-  const [selectedProject, setSelectedProject] = useState<string | null>("saas-billing-dashboard");
+  const [recentProjects, setRecentProjects] = useState<ProjectItem[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [showPipeline, setShowPipeline] = useState(!!clarificationDone);
   const [idea, setIdea] = useState(returnedIdea);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState("");
+
+  useEffect(() => {
+    apiProjects()
+      .then((r) => setRecentProjects(r.projects))
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("需要登录")) {
+          clearStoredToken();
+          navigate("/login", { replace: true });
+        }
+      })
+      .finally(() => setProjectsLoading(false));
+  }, [navigate]);
 
   const handleIdeaSubmit = async (newIdea: string) => {
     setStarting(true);
@@ -74,10 +75,23 @@ export default function Index() {
         },
       });
     } catch (e) {
-      setStartError(e instanceof Error ? e.message : "启动失败");
+      const msg = e instanceof Error ? e.message : "启动失败";
+      if (msg.includes("需要登录")) {
+        clearStoredToken();
+        navigate("/login", { replace: true });
+        return;
+      }
+      setStartError(msg);
     } finally {
       setStarting(false);
     }
+  };
+
+  const handleResume = (p: ProjectItem) => {
+    const route = stageToRoute(p.stage);
+    navigate(route, {
+      state: { idea: p.name, sessionId: p.session_id },
+    });
   };
 
   const handleReset = () => {
@@ -87,7 +101,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -95,44 +108,59 @@ export default function Index() {
               <Zap size={14} className="text-primary-foreground" />
             </div>
             <span className="font-mono font-bold text-sm text-foreground tracking-tight">
-              celadon
+              {t("appName").toLowerCase()}
             </span>
             <span className="font-mono text-xs text-muted-foreground/50 border border-border px-1.5 py-0.5 rounded">
               v0.1.0
             </span>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 border border-border rounded-lg p-0.5">
+              <button
+                onClick={() => setLocale("zh")}
+                className={`px-2 py-0.5 text-xs font-mono rounded ${locale === "zh" ? "bg-celadon text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                中
+              </button>
+              <button
+                onClick={() => setLocale("en")}
+                className={`px-2 py-0.5 text-xs font-mono rounded ${locale === "en" ? "bg-celadon text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                EN
+              </button>
+            </div>
             <a href="#" className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors">
-              文档
+              {t("docs")}
             </a>
             <a href="#" className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors">
-              API
+              {t("api")}
             </a>
-            <a
-              href="#"
-              className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
-            >
+            <a href="#" className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors">
               <Github size={13} />
               <span>GitHub</span>
             </a>
+            {getStoredToken() ? null : (
+              <>
+                <Link to="/login" className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors">
+                  登录
+                </Link>
+                <Link to="/register" className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors">
+                  注册
+                </Link>
+              </>
+            )}
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-celadon text-primary-foreground text-xs font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow">
               <Terminal size={12} />
-              开始使用
+              {t("getStarted")}
             </button>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
       <section className="relative pt-14 overflow-hidden">
-        {/* Background */}
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-20"
-          style={{ backgroundImage: `url(${heroBg})` }}
-        />
+        <div className="absolute inset-0 bg-cover bg-center opacity-20" style={{ backgroundImage: `url(${heroBg})` }} />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/60 to-background" />
-        {/* Grid */}
         <div
           className="absolute inset-0 opacity-30"
           style={{
@@ -143,32 +171,25 @@ export default function Index() {
         />
 
         <div className="relative max-w-7xl mx-auto px-6 pt-20 pb-16 text-center">
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-celadon/30 bg-celadon/8 mb-8">
             <div className="w-1.5 h-1.5 rounded-full bg-celadon animate-pulse-dot" />
-            <span className="text-xs font-mono text-celadon">
-              持续交互式开发流程 · Continuous Interactive Dev
-            </span>
+            <span className="text-xs font-mono text-celadon">{t("tagline")}</span>
           </div>
 
-          {/* Headline */}
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4 leading-tight">
-            <span className="text-foreground">把</span>
-            <span className="text-celadon font-mono"> 想法 </span>
-            <span className="text-foreground">变成</span>
+            <span className="text-foreground">{t("headline1")}</span>
+            <span className="text-celadon font-mono"> {t("headline2")} </span>
+            <span className="text-foreground">{t("headline3")}</span>
             <br />
-            <span className="text-foreground">可部署的软件</span>
+            <span className="text-foreground">{t("headline4")}</span>
           </h1>
 
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto mb-12 leading-relaxed">
-            提交一个想法，Celadon 自动完成需求澄清、PRD 生成、AI 驱动开发与部署。
+            {t("subtitle")}
             <br />
-            <span className="text-muted-foreground/60 text-sm font-mono">
-              Powered by Zene · Planner / Executor / Reflector loop
-            </span>
+            <span className="text-muted-foreground/60 text-sm font-mono">{t("poweredBy")}</span>
           </p>
 
-          {/* Idea Input / Post-clarification result */}
           {!showPipeline ? (
             <div className="max-w-2xl mx-auto animate-fade-in">
               {startError && (
@@ -177,9 +198,7 @@ export default function Index() {
                 </div>
               )}
               <IdeaInput onSubmit={handleIdeaSubmit} disabled={starting} />
-              <p className="text-xs font-mono text-muted-foreground/40 mt-3 text-center">
-                支持中英文描述 · 无需精确规格 · AI 会帮你澄清
-              </p>
+              <p className="text-xs font-mono text-muted-foreground/40 mt-3 text-center">{t("hintInput")}</p>
             </div>
           ) : (
             <div className="max-w-2xl mx-auto animate-fade-in">
@@ -192,7 +211,7 @@ export default function Index() {
                 </div>
                 <div className="border-t border-border pt-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono text-celadon">pipeline 已启动 · 澄清完成</span>
+                    <span className="text-xs font-mono text-celadon">pipeline · {t("clarify")} done</span>
                   </div>
                   <PipelineStages activeStage="prd" completedStages={["clarify"]} />
                 </div>
@@ -201,143 +220,73 @@ export default function Index() {
                 onClick={handleReset}
                 className="text-xs font-mono text-muted-foreground/50 hover:text-muted-foreground transition-colors"
               >
-                ← 重新输入
+                ← {t("newIdea")}
               </button>
             </div>
           )}
         </div>
       </section>
 
-      {/* Pipeline overview */}
+      {/* Recent projects */}
+      <section className="py-8 border-t border-border">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
+              {t("recentProjects")}
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          {projectsLoading ? (
+            <div className="text-sm text-muted-foreground font-mono">...</div>
+          ) : recentProjects.length === 0 ? (
+            <p className="text-sm text-muted-foreground font-mono">{t("noRecentProjects")}</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentProjects.slice(0, 6).map((p) => (
+                <div
+                  key={p.session_id}
+                  className="rounded-xl border border-border bg-surface-1 p-4 hover:border-celadon/40 transition-colors flex flex-col"
+                >
+                  <div className="font-mono font-semibold text-foreground truncate mb-1">{p.name}</div>
+                  <div className="text-xs font-mono text-muted-foreground/60 mb-3">
+                    {formatUpdatedAt(p.updated_at, t)}
+                  </div>
+                  <button
+                    onClick={() => handleResume(p)}
+                    className="mt-auto flex items-center gap-1.5 text-xs font-mono text-celadon hover:text-celadon-glow"
+                  >
+                    {t("continueWork")}
+                    <ChevronRight size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Flow overview */}
       <section className="py-12 border-t border-border">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center gap-3 mb-8">
             <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-              流程概览
+              {t("flowOverview")}
             </span>
             <div className="flex-1 h-px bg-border" />
           </div>
-          <PipelineStages
-            activeStage="dev"
-            completedStages={["clarify", "prd"]}
-            className="max-w-2xl"
-          />
+          <PipelineStages activeStage="dev" completedStages={["clarify", "prd"]} className="max-w-2xl" />
         </div>
       </section>
 
-      {/* Main content: Projects + Detail */}
-      <section className="py-8 pb-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Projects sidebar */}
-            <div className="lg:col-span-1">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-                  项目
-                </span>
-                <button className="flex items-center gap-1 text-xs font-mono text-celadon/70 hover:text-celadon transition-colors">
-                  <span>查看全部</span>
-                  <ChevronRight size={12} />
-                </button>
-              </div>
-              <div className="space-y-3">
-                {DEMO_PROJECTS.map((project) => (
-                  <ProjectCard
-                    key={project.name}
-                    {...project}
-                    onClick={() => setSelectedProject(project.name)}
-                    className={
-                      selectedProject === project.name
-                        ? "border-celadon/40 bg-surface-1"
-                        : ""
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Detail panel */}
-            <div className="lg:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">
-                  {selectedProject ?? "选择项目"}
-                </span>
-                {selectedProject && (
-                  <button className="flex items-center gap-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors">
-                    <span>查看仓库</span>
-                    <ArrowUpRight size={12} />
-                  </button>
-                )}
-              </div>
-
-              {selectedProject === "saas-billing-dashboard" ? (
-                <div className="space-y-3">
-                  <StageDetail
-                    stageName="澄清"
-                    stageSubtitle="Clarify"
-                    status="done"
-                    logs={[
-                      { type: "cmd", text: "clarify --idea 'SaaS billing dashboard'", time: "11:58" },
-                      { type: "info", text: "识别到 3 个模糊点，发起澄清对话...", time: "11:58" },
-                      { type: "success", text: "验收标准已确认：多货币、Stripe 集成、角色权限", time: "12:00" },
-                    ]}
-                    output="范围：独立开发者后台，支持 Stripe webhook，多角色（Admin/Viewer）。技术栈：Next.js 14 + Prisma + PostgreSQL。"
-                  />
-                  <StageDetail
-                    stageName="需求文档"
-                    stageSubtitle="PRD"
-                    status="done"
-                    logs={[
-                      { type: "cmd", text: "generate-prd --from clarification.json", time: "12:00" },
-                      { type: "success", text: "PRD v1.0 生成完成 (1,847 words)", time: "12:01" },
-                    ]}
-                    output="PRD 包含 12 个功能模块、5 个非功能性要求、3 个 Milestone。已导出为 docs/prd.md。"
-                  />
-                  <StageDetail
-                    stageName="开发"
-                    stageSubtitle="Development · Zene"
-                    status="active"
-                    logs={DEMO_LOGS}
-                  />
-                  <StageDetail
-                    stageName="部署"
-                    stageSubtitle="Deploy"
-                    status="pending"
-                    logs={[]}
-                  />
-                  <StageDetail
-                    stageName="迭代"
-                    stageSubtitle="Iterate"
-                    status="pending"
-                    logs={[]}
-                  />
-                </div>
-              ) : (
-                <div className="rounded-xl border border-border bg-surface-1 h-64 flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground font-mono">
-                    ← 选择一个项目查看详情
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
       <footer className="border-t border-border py-8">
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-5 h-5 rounded bg-celadon flex items-center justify-center">
               <Zap size={11} className="text-primary-foreground" />
             </div>
-            <span className="text-xs font-mono text-muted-foreground">
-              celadon · idea → software
-            </span>
+            <span className="text-xs font-mono text-muted-foreground">{t("appName").toLowerCase()} · idea → software</span>
           </div>
-          <span className="text-xs font-mono text-muted-foreground/40">
-            powered by Zene
-          </span>
+          <span className="text-xs font-mono text-muted-foreground/40">powered by Zene</span>
         </div>
       </footer>
     </div>

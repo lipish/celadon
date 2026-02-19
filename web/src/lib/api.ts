@@ -1,16 +1,37 @@
 /**
  * Celadon 后端 API 客户端
  * 默认请求 http://localhost:3000，可通过 VITE_API_BASE_URL 覆盖
+ * 若存在 token 则在请求头中携带 Authorization: Bearer <token>
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+const TOKEN_KEY = "celadon_token";
 
 type ApiData = Record<string, unknown>;
+
+function authHeaders(): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+}
+
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setStoredToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearStoredToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
 
 async function postJson(path: string, payload: ApiData): Promise<ApiData> {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(payload),
   });
   const data = (await response.json()) as ApiData;
@@ -21,7 +42,9 @@ async function postJson(path: string, payload: ApiData): Promise<ApiData> {
 }
 
 async function getJson(path: string): Promise<ApiData> {
-  const response = await fetch(`${API_BASE}${path}`);
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+  });
   const data = (await response.json()) as ApiData;
   if (!response.ok) {
     throw new Error(String(data.error ?? `请求失败: ${response.status}`));
@@ -110,4 +133,37 @@ export async function apiDeploy(sessionId: string, env = "staging"): Promise<Dep
 export async function apiHealth(): Promise<{ status: string }> {
   const data = await getJson("/api/health");
   return data as unknown as { status: string };
+}
+
+export interface ProjectItem {
+  project_id: string;
+  name: string;
+  status: string;
+  updated_at: string;
+  session_id: string;
+  stage: string;
+}
+
+export interface ProjectsResult {
+  projects: ProjectItem[];
+}
+
+export async function apiProjects(): Promise<ProjectsResult> {
+  const data = await getJson("/api/projects");
+  return data as unknown as ProjectsResult;
+}
+
+export interface AuthResult {
+  user_id: string;
+  token: string;
+}
+
+export async function apiRegister(email: string, password: string): Promise<AuthResult> {
+  const data = await postJson("/api/register", { email, password });
+  return data as unknown as AuthResult;
+}
+
+export async function apiLogin(email: string, password: string): Promise<AuthResult> {
+  const data = await postJson("/api/login", { email, password });
+  return data as unknown as AuthResult;
 }
