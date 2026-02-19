@@ -1,1 +1,9 @@
 /target
+/.celadon
+/web/node_modules
+/web/dist
+/web/.vite
+/web/tsconfig.tsbuildinfo
+.env
+.DS_Store
+.fastembed_cache
