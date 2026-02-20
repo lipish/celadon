@@ -46,9 +46,9 @@ impl ZeneClient {
                 .build()?;
             runtime.block_on(async move {
                 let mut config = AgentConfig::from_env()?;
-                if let Some(p) = planner { config.planner_model = p; }
-                if let Some(e) = executor { config.executor_model = e; }
-                if let Some(r) = reflector { config.reflector_model = r; }
+                if let Some(p) = planner { config.planner.model = p; }
+                if let Some(e) = executor { config.executor.model = e; }
+                if let Some(r) = reflector { config.reflector.model = r; }
                 
                 let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
                 let storage_dir = PathBuf::from(&home).join(".zene/sessions");
