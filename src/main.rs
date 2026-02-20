@@ -34,7 +34,7 @@ async fn main() -> AppResult<()> {
             return Ok(());
         }
         command => {
-            let mut service = CeladonService::load(storage)?;
+            let mut service = CeladonService::load(storage).await?;
             match command {
                 Commands::Start { idea, name } => service.start(idea, name).await?,
                 Commands::Idea { session_id, text } => {

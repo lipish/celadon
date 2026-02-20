@@ -175,7 +175,7 @@ async fn make_service(
         )
         .await
         .map_err(ApiError::from),
-        _ => CeladonService::load(state.storage_dir.clone()).map_err(ApiError::from),
+        _ => CeladonService::load(state.storage_dir.clone()).await.map_err(ApiError::from),
     }
 }
 

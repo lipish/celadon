@@ -2,7 +2,7 @@
 
 use crate::common::AppResult;
 use crate::models::StateStore;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::types::Json;
 use sqlx::PgPool;

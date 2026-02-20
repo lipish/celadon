@@ -21,7 +21,7 @@ pub struct CeladonService {
 }
 
 impl CeladonService {
-    pub fn load(storage_dir: PathBuf) -> AppResult<Self> {
+    pub async fn load(storage_dir: PathBuf) -> AppResult<Self> {
         fs::create_dir_all(&storage_dir)?;
         let state_file = storage_dir.join("state.json");
         let mut state: StateStore = if state_file.exists() {
