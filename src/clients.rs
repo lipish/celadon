@@ -30,7 +30,14 @@ impl ZeneClient {
         })
     }
 
-    pub async fn run_agent_via_lib(&self, session_id: &str, instruction: &str) -> AppResult<Value> {
+    pub async fn run_agent_via_lib(
+        &self,
+        session_id: &str,
+        instruction: &str,
+        planner: Option<String>,
+        executor: Option<String>,
+        reflector: Option<String>,
+    ) -> AppResult<Value> {
         let session_id = session_id.to_string();
         let instruction = instruction.to_string();
         tokio::task::spawn_blocking(move || -> AppResult<Value> {
@@ -38,7 +45,11 @@ impl ZeneClient {
                 .enable_all()
                 .build()?;
             runtime.block_on(async move {
-                let config = AgentConfig::from_env()?;
+                let mut config = AgentConfig::from_env()?;
+                if let Some(p) = planner { config.planner_model = p; }
+                if let Some(e) = executor { config.executor_model = e; }
+                if let Some(r) = reflector { config.reflector_model = r; }
+                
                 let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
                 let storage_dir = PathBuf::from(&home).join(".zene/sessions");
                 let store = Arc::new(FileSessionStore::new(storage_dir)?);
@@ -81,7 +92,11 @@ pub(crate) const PRD_GEN_SYSTEM: &str = r#"根据对话内容，提炼并生成�
 
 pub struct LlmGateway {
     client: Arc<LlmClient>,
-    model: String,
+    #[allow(dead_code)]
+    model: String, // Fallback model
+    planner_model: String,
+    executor_model: String,
+    reflector_model: String,
 }
 
 impl LlmGateway {
@@ -95,34 +110,47 @@ impl LlmGateway {
         let client = LlmClient::deepseek(&api_key)
             .map_err(|e| format!("初始化 LLM 客户端失败: {e}"))?;
         let model =
-            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
+            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek/deepseek-chat".to_string());
+        
         Ok(Self {
             client: Arc::new(client),
-            model,
+            model: model.clone(),
+            planner_model: std::env::var("LLM_PLANNER_MODEL").unwrap_or_else(|_| model.clone()),
+            executor_model: std::env::var("LLM_EXECUTOR_MODEL").unwrap_or_else(|_| model.clone()),
+            reflector_model: std::env::var("LLM_REFLECTOR_MODEL").unwrap_or_else(|_| model.clone()),
         })
     }
 
     pub async fn load(pool: Option<&crate::db::Pool>) -> Result<Self, String> {
         let mut api_key = None;
-        let mut model = None;
+        let mut planner_model = None;
+        let mut executor_model = None;
+        let mut reflector_model = None;
+        let mut fallback_model = None;
 
         if let Some(p) = pool {
+            // API Keys
             if let Ok(Some(val)) = crate::db::get_system_setting(p, "DEEPSEEK_API_KEY").await {
-                if !val.trim().is_empty() {
-                    api_key = Some(val);
-                }
+                if !val.trim().is_empty() { api_key = Some(val); }
             }
             if api_key.is_none() {
                 if let Ok(Some(val)) = crate::db::get_system_setting(p, "OPENAI_API_KEY").await {
-                    if !val.trim().is_empty() {
-                        api_key = Some(val);
-                    }
+                    if !val.trim().is_empty() { api_key = Some(val); }
                 }
             }
+
+            // Models
+            if let Ok(Some(val)) = crate::db::get_system_setting(p, "LLM_PLANNER_MODEL").await {
+                if !val.trim().is_empty() { planner_model = Some(val); }
+            }
+            if let Ok(Some(val)) = crate::db::get_system_setting(p, "LLM_EXECUTOR_MODEL").await {
+                if !val.trim().is_empty() { executor_model = Some(val); }
+            }
+            if let Ok(Some(val)) = crate::db::get_system_setting(p, "LLM_REFLECTOR_MODEL").await {
+                if !val.trim().is_empty() { reflector_model = Some(val); }
+            }
             if let Ok(Some(val)) = crate::db::get_system_setting(p, "CELADON_LLM_MODEL").await {
-                if !val.trim().is_empty() {
-                    model = Some(val);
-                }
+                if !val.trim().is_empty() { fallback_model = Some(val); }
             }
         }
 
@@ -139,15 +167,23 @@ impl LlmGateway {
         let client = LlmClient::deepseek(&api_key)
             .map_err(|e| format!("初始化 LLM 客户端失败: {e}"))?;
 
-        let model = model.unwrap_or_else(|| {
-            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string())
+        let fallback = fallback_model.unwrap_or_else(|| {
+            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek/deepseek-chat".to_string())
         });
 
         Ok(Self {
             client: Arc::new(client),
-            model,
+            model: fallback.clone(),
+            planner_model: planner_model.unwrap_or_else(|| std::env::var("LLM_PLANNER_MODEL").unwrap_or_else(|_| fallback.clone())),
+            executor_model: executor_model.unwrap_or_else(|| std::env::var("LLM_EXECUTOR_MODEL").unwrap_or_else(|_| fallback.clone())),
+            reflector_model: reflector_model.unwrap_or_else(|| std::env::var("LLM_REFLECTOR_MODEL").unwrap_or_else(|_| fallback.clone())),
         })
     }
+
+    pub fn planner_model(&self) -> &str { &self.planner_model }
+    pub fn executor_model(&self) -> &str { &self.executor_model }
+    pub fn reflector_model(&self) -> &str { &self.reflector_model }
+}
 
     pub async fn clarify_round(
         &self,
@@ -170,7 +206,7 @@ impl LlmGateway {
                 }
             })
             .collect();
-        let request = ChatRequest::new(&self.model)
+        let request = ChatRequest::new(&self.planner_model)
             .with_messages(msgs)
             .with_max_tokens(2048);
         let response = self

@@ -306,7 +306,13 @@ impl CeladonService {
         } else {
             Some(
                 self.zene_client
-                    .run_agent_via_lib(session_id, &final_instruction)
+                    .run_agent_via_lib(
+                        session_id,
+                        &final_instruction,
+                        Some(self.llm_gateway.planner_model().to_string()),
+                        Some(self.llm_gateway.executor_model().to_string()),
+                        Some(self.llm_gateway.reflector_model().to_string()),
+                    )
                     .await?,
             )
         };
