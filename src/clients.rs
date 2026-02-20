@@ -183,7 +183,6 @@ impl LlmGateway {
     pub fn planner_model(&self) -> &str { &self.planner_model }
     pub fn executor_model(&self) -> &str { &self.executor_model }
     pub fn reflector_model(&self) -> &str { &self.reflector_model }
-}
 
     pub async fn clarify_round(
         &self,
