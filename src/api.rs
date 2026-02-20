@@ -11,7 +11,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::PathBuf;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -111,7 +111,7 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
         .route("/api/dev/run", post(run_dev))
         .route("/api/deploy", post(run_deploy))
         .route("/api/projects", get(list_projects))
-        .route("/api/status/{session_id}", get(status));
+        .route("/api/status/:session_id", get(status));
     if state.pool.is_some() {
         app = app
             .route("/api/register", post(register))
@@ -119,7 +119,12 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
             .route("/api/me", get(me))
             .route("/api/logout", post(logout));
     }
-    let app = app.with_state(state).layer(CorsLayer::permissive());
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app = app.with_state(state).layer(cors);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
     println!("Celadon API running on http://localhost:{port}");
