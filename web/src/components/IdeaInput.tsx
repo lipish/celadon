@@ -42,7 +42,7 @@ export function IdeaInput({ onSubmit, className, disabled, loading, error, defau
   };
 
   const charCount = value.length;
-  const isReady = charCount > 10;
+  const isReady = value.trim().length > 0;
 
   return (
     <div
