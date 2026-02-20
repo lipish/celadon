@@ -91,7 +91,26 @@ Axum 路由语法非常严格。请确保 `{capture}` 语法正确：
 
 ---
 
-## 5. 持续集成
-每当你向 `main` 分支推送到 GitHub 时：
-- **Cloudflare** 会自动重新构建前端。
-- (可选) 你可以配置 GitHub Actions 自动运行 `fly deploy` 同步后端。
+## 5. 持续集成与自动化部署 (CI/CD)
+
+为了让你在推送代码到 GitHub 后自动更新 Fly.io，我们配置了 GitHub Actions。
+
+### 自动化流程
+- 每当你向 `main` 分支执行 `git push` 时，GitHub 会自动触发构建并运行 `fly deploy`。
+
+### 初始设置 (必须手动完成一次)
+1. **获取 Fly Token**:
+   - 在终端运行：`fly auth token`
+   - 或者访问 [Fly.io Tokens 页面](https://web.fly.io/user/tokens) 创建一个名为 `GITHUB_ACTIONS` 的新 Token。
+2. **在 GitHub 后台配置**:
+   - 进入你的 GitHub 仓库 -> **Settings** -> **Secrets and variables** -> **Actions**。
+   - 点击 **New repository secret**。
+   - Name: **`FLY_API_TOKEN`**
+   - Value: 填入你刚才获取的 Token。
+3. **完成**: 以后你只需 `git push`，剩下的都由 GitHub 完成。
+
+### 手动更新方式
+如果你不想等待 GitHub Actions，或者只是想快速测试，随时可以在根目录下运行：
+```bash
+fly deploy
+```
