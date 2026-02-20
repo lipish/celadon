@@ -111,7 +111,7 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
         .route("/api/dev/run", post(run_dev))
         .route("/api/deploy", post(run_deploy))
         .route("/api/projects", get(list_projects))
-        .route("/api/status/:session_id", get(status));
+        .route("/api/status/{session_id}", get(status));
     if state.pool.is_some() {
         app = app
             .route("/api/register", post(register))
