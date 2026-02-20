@@ -2,9 +2,246 @@
  * Generates a realistic PRD markdown document from the submitted idea.
  * In production, this would be replaced by a real AI call.
  */
-export function generatePrd(idea: string, answers: string[]): string {
+import { Locale } from "./i18n";
+
+export function generatePrd(idea: string, answers: string[], locale: Locale = "zh"): string {
   const date = new Date().toISOString().split("T")[0];
   const shortIdea = idea.length > 60 ? idea.slice(0, 57) + "..." : idea;
+
+  if (locale === "en") {
+    const targetUserEn = answers[0] || "Indie developers / SMB teams";
+    const mvpScopeEn = answers[1] || "MVP version with core features";
+    const techStackEn = answers[2] || "Modern web stack (Next.js + PostgreSQL)";
+    const acceptanceEn = answers[3] || "Core features functional, basic tests passed";
+
+    return `# PRD · ${shortIdea}
+
+> **Version** v0.1.0 &nbsp;·&nbsp; **Date** ${date} &nbsp;·&nbsp; **Status** Draft  
+> Generated automatically by Celadon · Zene
+
+---
+
+## 1. Project Overview
+
+### 1.1 Background & Motivation
+
+${idea}
+
+As demand continues to grow, the market needs a focused, easy-to-use, and scalable solution to help target users solve core problems at lower costs and higher speed.
+
+### 1.2 Goals
+
+- **Primary Goal**: Deliver a functional MVP within 8 weeks.
+- **Secondary Goal**: Validate core assumptions and collect real user feedback.
+- **Long-term Goal**: Continuously iterate based on data to expand functional boundaries.
+
+---
+
+## 2. Target Users
+
+### 2.1 Primary User Groups
+
+${targetUserEn}
+
+### 2.2 User Personas
+
+**Primary Role: Core User**
+
+| Attribute | Description |
+|-----------|-------------|
+| Technical Skill | Intermediate+, familiar with basic web operations |
+| Usage Frequency | 3–5 times per week |
+| Core Pain Points | Existing tools are inefficient, steep learning curve, hard to integrate |
+| Expected Benefits | Save time, reduce error rate, improve team collaboration |
+
+---
+
+## 3. Functional Requirements
+
+### 3.1 MVP Scope
+
+${mvpScopeEn}
+
+#### 3.1.1 Core Features (Must-Have)
+
+- **User Authentication System**
+  - Email + Password Register/Login
+  - OAuth login (GitHub / Google)
+  - Session management and secure logout
+
+- **Core Business Logic**
+  - Create, edit, and delete primary entities
+  - State machine management (Draft → In Progress → Done)
+  - Real-time status updates and notifications
+
+- **Data Management**
+  - List view + Search/Filtering
+  - Pagination (20 items per page)
+  - Data Export (CSV / JSON)
+
+#### 3.1.2 Enhancement Features (Optional)
+
+- Team collaboration and RBAC
+- Webhooks and third-party integrations
+- Advanced analytics and charts
+- Mobile responsiveness
+
+### 3.2 User Stories
+
+**Epic 1: User Management**
+
+\`\`\`
+As a new user,
+I want to register with my email,
+So that I can start using the core features.
+
+Acceptance Criteria:
+- Registration form includes email, password, confirm password fields
+- Password strength validation (min 8 chars, incl. upper/lower case and numbers)
+- Auto-redirect to Dashboard after successful registration
+- Duplicate email registration is blocked with friendly error
+\`\`\`
+
+**Epic 2: Core Business**
+
+\`\`\`
+As a logged-in user,
+I want to quickly create a new item,
+So that I can track my work progress.
+
+Acceptance Criteria:
+- Creation takes no more than 3 steps
+- Form validation responds immediately (< 100ms)
+- List refreshes in real-time after creation
+- Support shortcut keys (Cmd/Ctrl + N) to trigger creation
+\`\`\`
+
+**Epic 3: Data Management**
+
+\`\`\`
+As a user,
+I want to quickly search and filter my data,
+So that I can find target content in large datasets.
+
+Acceptance Criteria:
+- Search response time < 300ms
+- Support filtering by status, date, and keywords
+- Filter conditions can be combined
+- URL parameters remember filter state for sharing
+\`\`\`
+
+---
+
+## 4. Technical Specifications
+
+### 4.1 Tech Stack
+
+${techStackEn}
+
+#### Recommended Architecture
+
+\`\`\`
+Frontend         Backend          Infrastructure
+──────────       ──────────       ──────────────
+Next.js 14   →  API Routes    →  Vercel / Railway
+TypeScript       Prisma ORM       PostgreSQL (Supabase)
+Tailwind CSS     Auth.js          Redis (Cache)
+shadcn/ui        Zod (Validation) S3 (File Storage)
+\`\`\`
+
+### 4.2 Non-Functional Requirements
+
+| metric | requirement |
+|--------|-------------|
+| Page Load Time | LCP < 2s |
+| API Latency | P99 < 500ms |
+| Availability | 99.5% (monthly) |
+| Concurrent Users | Support 500 CCU |
+| Data Security | HTTPS everywhere, bcrypt password hashing |
+
+### 4.3 Data Model (Draft)
+
+\`\`\`prisma
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  items     Item[]
+}
+
+model Item {
+  id        String   @id @default(cuid())
+  title     String
+  status    Status   @default(DRAFT)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Status {
+  DRAFT
+  ACTIVE
+  DONE
+}
+\`\`\`
+
+---
+
+## 5. Roadmap
+
+### 5.1 Development Cycle (8 weeks)
+
+| Milestone | Time | Content | Deliverable |
+|-----------|------|---------|-------------|
+| M1 · Infra | Week 1–2 | Project init, Auth system, DB schema | Loginable Shell |
+| M2 · Core | Week 3–5 | Core business logic, CRUD, Lists | Alpha Version |
+| M3 · Polish | Week 6–7 | UI optimization, error handling, tests | Beta Version |
+| M4 · Launch | Week 8 | Production deploy, monitoring, docs | **v1.0 Release** |
+
+### 5.2 Acceptance Criteria
+
+${acceptanceEn}
+
+**General Acceptance Criteria:**
+- [ ] All core user story acceptance criteria passed
+- [ ] Unit test coverage ≥ 70%
+- [ ] Lighthouse performance score ≥ 85
+- [ ] Fully mobile responsive (iOS / Android)
+- [ ] Security scan passed, no high-risk vulnerabilities
+
+---
+
+## 6. Risks & Mitigations
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Tech complexity | Medium | High | Weekly tech reviews, trim non-core features |
+| Scope creep | High | Medium | Bi-weekly demos, gather feedback early |
+| Dependency issues | Low | Medium | Use mature libraries, avoid single points of failure |
+
+---
+
+## 7. Appendix
+
+### 7.1 Glossary
+
+- **MVP**: Minimum Viable Product
+- **PRD**: Product Requirements Document
+- **LCP**: Largest Contentful Paint
+
+### 7.2 References
+
+- [System Design Primer](https://github.com/donnemartin/system-design-primer)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)
+
+---
+
+*This document was automatically generated by Celadon · Zene based on your idea and clarification. To request changes, please submit an update via the iteration process.*
+`;
+  }
 
   const targetUser = answers[0] || "独立开发者 / 中小型团队";
   const mvpScope = answers[1] || "核心功能的 MVP 版本";

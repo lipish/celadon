@@ -1,8 +1,6 @@
-/**
- * Celadon 后端 API 客户端
- * 默认请求 http://localhost:3000，可通过 VITE_API_BASE_URL 覆盖
- * 若存在 token 则在请求头中携带 Authorization: Bearer <token>
- */
+import { getStoredLocale, getT } from "./i18n";
+
+const getApiT = () => getT(getStoredLocale());
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 const TOKEN_KEY = "celadon_token";
@@ -36,13 +34,14 @@ async function postJson(path: string, payload: ApiData): Promise<ApiData> {
   });
 
   if (!response.ok) {
-    let errorMsg = `请求失败: ${response.status}`;
+    const t = getApiT();
+    let errorMsg = `${t("requestError")}: ${response.status}`;
     try {
       const data = await response.json();
       errorMsg = String(data.error ?? errorMsg);
     } catch {
       // 非 JSON 错误 body
-      if (response.status === 404) errorMsg = "接口不存在 (404)，请检查后端是否开启了数据库模式";
+      if (response.status === 404) errorMsg = t("apiError404Db");
     }
     throw new Error(errorMsg);
   }
@@ -50,7 +49,7 @@ async function postJson(path: string, payload: ApiData): Promise<ApiData> {
   try {
     return (await response.json()) as ApiData;
   } catch {
-    throw new Error("服务端未返回有效的 JSON 数据");
+    throw new Error(getApiT()("apiErrorInvalidJson"));
   }
 }
 
@@ -60,12 +59,13 @@ async function getJson(path: string): Promise<ApiData> {
   });
 
   if (!response.ok) {
-    let errorMsg = `请求失败: ${response.status}`;
+    const t = getApiT();
+    let errorMsg = `${t("requestError")}: ${response.status}`;
     try {
       const data = await response.json();
       errorMsg = String(data.error ?? errorMsg);
     } catch {
-      if (response.status === 404) errorMsg = "接口不存在 (404)";
+      if (response.status === 404) errorMsg = t("apiError404");
     }
     throw new Error(errorMsg);
   }
@@ -73,7 +73,7 @@ async function getJson(path: string): Promise<ApiData> {
   try {
     return (await response.json()) as ApiData;
   } catch {
-    throw new Error("服务端未返回有效的 JSON 数据");
+    throw new Error(getApiT()("apiErrorInvalidJson"));
   }
 }
 

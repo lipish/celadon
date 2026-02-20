@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiDeploy } from "@/lib/api";
+import { useLocale } from "@/contexts/LocaleContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,37 +48,38 @@ interface EnvVar {
 // ─── Pipeline bar ─────────────────────────────────────────────────────────────
 
 const PIPELINE_STAGES = [
-  { id: "clarify", sub: "Clarify", Icon: MessageSquare },
-  { id: "prd",     sub: "PRD",     Icon: FileText       },
-  { id: "dev",     sub: "Dev",     Icon: Code2          },
-  { id: "deploy",  sub: "Deploy",  Icon: Rocket         },
-  { id: "iterate", sub: "Iterate", Icon: RefreshCw      },
+  { id: "clarify", sub: "stageClarify", Icon: MessageSquare },
+  { id: "prd", sub: "stagePrd", Icon: FileText },
+  { id: "dev", sub: "stageDev", Icon: Code2 },
+  { id: "deploy", sub: "stageDeploy", Icon: Rocket },
+  { id: "iterate", sub: "stageIterate", Icon: RefreshCw },
 ];
 
 function PipelineBar({ activeIndex }: { activeIndex: number }) {
+  const { t } = useLocale();
   return (
     <div className="flex items-center gap-0">
       {PIPELINE_STAGES.map((s, i) => {
-        const done   = i < activeIndex;
+        const done = i < activeIndex;
         const active = i === activeIndex;
         return (
           <div key={s.id} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
               <div className={cn(
                 "w-7 h-7 rounded-full border flex items-center justify-center transition-all",
-                done   && "border-celadon bg-celadon/15",
+                done && "border-celadon bg-celadon/15",
                 active && "border-stage-deploy bg-stage-deploy/10",
                 !done && !active && "border-border bg-surface-2",
               )}>
-                {done   ? <CheckCircle2 size={13} className="text-celadon" /> :
-                 active ? <Loader2 size={13} className="text-stage-deploy animate-spin" /> :
-                          <s.Icon size={12} className="text-muted-foreground/30" />}
+                {done ? <CheckCircle2 size={13} className="text-celadon" /> :
+                  active ? <Loader2 size={13} className="text-stage-deploy animate-spin" /> :
+                    <s.Icon size={12} className="text-muted-foreground/30" />}
               </div>
               <span className={cn(
                 "text-[9px] font-mono",
                 done ? "text-celadon" : active ? "text-stage-deploy" : "text-muted-foreground/30",
               )}>
-                {s.sub}
+                {t(s.sub)}
               </span>
             </div>
             {i < PIPELINE_STAGES.length - 1 && (
@@ -100,14 +102,14 @@ function BuildStepRow({ step, index }: { step: BuildStep; index: number }) {
     <div className={cn(
       "flex items-center gap-3 py-3 px-4 border-b border-border/50 last:border-0 transition-all",
       step.status === "active" && "bg-stage-deploy/4",
-      step.status === "done"   && "bg-transparent",
-      step.status === "error"  && "bg-destructive/4",
+      step.status === "done" && "bg-transparent",
+      step.status === "error" && "bg-destructive/4",
     )}>
       {/* Step number / status icon */}
       <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-        {step.status === "done"    && <CheckCircle2 size={15} className="text-celadon" />}
-        {step.status === "active"  && <Loader2 size={15} className="text-stage-deploy animate-spin" />}
-        {step.status === "error"   && <XCircle size={15} className="text-destructive" />}
+        {step.status === "done" && <CheckCircle2 size={15} className="text-celadon" />}
+        {step.status === "active" && <Loader2 size={15} className="text-stage-deploy animate-spin" />}
+        {step.status === "error" && <XCircle size={15} className="text-destructive" />}
         {step.status === "pending" && (
           <span className="text-[10px] font-mono text-muted-foreground/30 font-semibold">
             {String(index + 1).padStart(2, "0")}
@@ -119,9 +121,9 @@ function BuildStepRow({ step, index }: { step: BuildStep; index: number }) {
       <div className="flex-1 min-w-0">
         <div className={cn(
           "text-xs font-mono font-semibold",
-          step.status === "done"    && "text-foreground",
-          step.status === "active"  && "text-stage-deploy",
-          step.status === "error"   && "text-destructive",
+          step.status === "done" && "text-foreground",
+          step.status === "active" && "text-stage-deploy",
+          step.status === "error" && "text-destructive",
           step.status === "pending" && "text-muted-foreground/40",
         )}>
           {step.label}
@@ -155,18 +157,18 @@ function HealthRow({ check }: { check: HealthCheck }) {
   return (
     <div className="flex items-center gap-3 py-2.5 px-4 border-b border-border/50 last:border-0">
       <div className="flex-shrink-0">
-        {check.status === "pass"     && <CheckCircle2 size={13} className="text-celadon" />}
-        {check.status === "fail"     && <XCircle size={13} className="text-destructive" />}
+        {check.status === "pass" && <CheckCircle2 size={13} className="text-celadon" />}
+        {check.status === "fail" && <XCircle size={13} className="text-destructive" />}
         {check.status === "checking" && <Loader2 size={13} className="text-stage-deploy animate-spin" />}
-        {check.status === "pending"  && <div className="w-3 h-3 rounded-full border border-border bg-surface-2" />}
+        {check.status === "pending" && <div className="w-3 h-3 rounded-full border border-border bg-surface-2" />}
       </div>
       <div className="flex-1 min-w-0">
         <div className={cn(
           "text-xs font-mono font-semibold",
-          check.status === "pass"     && "text-foreground",
-          check.status === "fail"     && "text-destructive",
+          check.status === "pass" && "text-foreground",
+          check.status === "fail" && "text-destructive",
           check.status === "checking" && "text-stage-deploy",
-          check.status === "pending"  && "text-muted-foreground/40",
+          check.status === "pending" && "text-muted-foreground/40",
         )}>
           {check.label}
         </div>
@@ -187,11 +189,11 @@ function HealthRow({ check }: { check: HealthCheck }) {
 // ─── Log line ─────────────────────────────────────────────────────────────────
 
 const logStyles: Record<LogType, string> = {
-  cmd:     "text-stage-clarify",
-  info:    "text-muted-foreground/65",
+  cmd: "text-stage-clarify",
+  info: "text-muted-foreground/65",
   success: "text-celadon",
-  warn:    "text-stage-deploy",
-  error:   "text-destructive",
+  warn: "text-stage-deploy",
+  error: "text-destructive",
 };
 
 function LogRow({ log }: { log: LogLine }) {
@@ -201,10 +203,10 @@ function LogRow({ log }: { log: LogLine }) {
         {log.time}
       </span>
       <span className={cn("text-[11px] font-mono break-all leading-relaxed", logStyles[log.type])}>
-        {log.type === "cmd"     && <span className="text-muted-foreground/35 mr-1.5">$</span>}
+        {log.type === "cmd" && <span className="text-muted-foreground/35 mr-1.5">$</span>}
         {log.type === "success" && <span className="mr-1">✓</span>}
-        {log.type === "warn"    && <span className="mr-1">⚠</span>}
-        {log.type === "error"   && <span className="mr-1">✗</span>}
+        {log.type === "warn" && <span className="mr-1">⚠</span>}
+        {log.type === "error" && <span className="mr-1">✗</span>}
         {log.text}
       </span>
     </div>
@@ -237,6 +239,7 @@ function EnvRow({ env }: { env: EnvVar }) {
 
 function CopyBtn({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useLocale();
   return (
     <button
       onClick={async () => {
@@ -247,7 +250,7 @@ function CopyBtn({ text, label }: { text: string; label: string }) {
       className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/40 hover:text-muted-foreground transition-colors"
     >
       {copied ? <Check size={10} className="text-celadon" /> : <Copy size={10} />}
-      {copied ? "已复制" : label}
+      {copied ? t("copied") : label}
     </button>
   );
 }
@@ -259,69 +262,15 @@ const makeTime = (offsetSec: number) => {
   return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
 };
 
-const INITIAL_LOGS: LogLine[] = [
-  { id: "l1",  type: "cmd",     text: "celadon deploy --env staging --provider vercel",          time: makeTime(95) },
-  { id: "l2",  type: "info",    text: "读取部署配置 deploy.config.ts...",                         time: makeTime(93) },
-  { id: "l3",  type: "info",    text: "连接到 Vercel 项目 saas-billing-dashboard...",             time: makeTime(91) },
-  { id: "l4",  type: "success", text: "认证成功，token 有效",                                     time: makeTime(90) },
-  { id: "l5",  type: "cmd",     text: "npm run build",                                            time: makeTime(88) },
-  { id: "l6",  type: "info",    text: "Next.js 14.2 编译中...",                                   time: makeTime(85) },
-  { id: "l7",  type: "info",    text: "  ✦ 收集页面和组件...",                                    time: makeTime(80) },
-  { id: "l8",  type: "info",    text: "  ✦ 运行 TypeScript 类型检查...",                          time: makeTime(75) },
-  { id: "l9",  type: "success", text: "  类型检查通过，0 错误",                                   time: makeTime(72) },
-  { id: "l10", type: "info",    text: "  ✦ 打包 JS 模块 (tree-shaking)...",                      time: makeTime(68) },
-  { id: "l11", type: "info",    text: "  ✦ 优化图片资源...",                                     time: makeTime(60) },
-  { id: "l12", type: "info",    text: "  ✦ 生成静态页面 /dashboard, /billing, /settings...",     time: makeTime(55) },
-  { id: "l13", type: "success", text: "构建成功 · 耗时 23.4s · 产物大小 847 kB",                 time: makeTime(50) },
-  { id: "l14", type: "cmd",     text: "vercel deploy --prebuilt --token $VERCEL_TOKEN",          time: makeTime(48) },
-  { id: "l15", type: "info",    text: "上传构建产物到 Vercel CDN...",                             time: makeTime(44) },
-  { id: "l16", type: "info",    text: "分配边缘节点：sin1, nrt1, hkg1, sfo1...",                  time: makeTime(38) },
-  { id: "l17", type: "success", text: "构建产物已部署到 4 个边缘节点",                            time: makeTime(32) },
-  { id: "l18", type: "info",    text: "注入环境变量 (Staging)...",                               time: makeTime(28) },
-  { id: "l19", type: "success", text: "16 个环境变量已注入",                                      time: makeTime(25) },
-  { id: "l20", type: "cmd",     text: "prisma migrate deploy --schema ./prisma/schema.prisma",  time: makeTime(22) },
-  { id: "l21", type: "success", text: "数据库迁移完成 (1 个 migration)",                         time: makeTime(18) },
-];
-
-const STREAM_LOGS: LogLine[] = [
-  { id: "s1", type: "info",    text: "运行健康检查...",                                time: "" },
-  { id: "s2", type: "info",    text: "  GET /api/health → 200 OK (42ms)",             time: "" },
-  { id: "s3", type: "info",    text: "  GET /api/auth/session → 200 OK (89ms)",       time: "" },
-  { id: "s4", type: "info",    text: "  GET /api/subscriptions → 200 OK (131ms)",     time: "" },
-  { id: "s5", type: "success", text: "全部健康检查通过 (3/3)",                          time: "" },
-  { id: "s6", type: "success", text: "SSL 证书已签发 (Let's Encrypt · 90天)",          time: "" },
-  { id: "s7", type: "success", text: "CDN 缓存预热完成 (12个节点)",                    time: "" },
-  { id: "s8", type: "success", text: "Staging 部署成功 · https://staging-saas-billing.vercel.app", time: "" },
-];
-
-const INITIAL_STEPS: BuildStep[] = [
-  { id: "install",  label: "安装依赖",        sublabel: "npm ci --frozen-lockfile",         status: "done", duration: "18.2s" },
-  { id: "typecheck",label: "类型检查",        sublabel: "tsc --noEmit",                     status: "done", duration: "4.1s"  },
-  { id: "lint",     label: "代码规范",        sublabel: "eslint + prettier",                status: "done", duration: "2.8s"  },
-  { id: "build",    label: "构建产物",        sublabel: "next build --prod",                status: "done", duration: "23.4s" },
-  { id: "upload",   label: "上传 CDN",        sublabel: "vercel deploy --prebuilt",         status: "done", duration: "6.7s"  },
-  { id: "migrate",  label: "数据库迁移",      sublabel: "prisma migrate deploy",            status: "done", duration: "3.1s"  },
-  { id: "health",   label: "健康检查",        sublabel: "GET /api/health × 3",             status: "active" },
-  { id: "ssl",      label: "SSL 证书",        sublabel: "Let's Encrypt 签发",              status: "pending" },
-  { id: "cdn",      label: "CDN 预热",        sublabel: "全球边缘节点同步",                  status: "pending" },
-];
-
-const INITIAL_HEALTH: HealthCheck[] = [
-  { id: "hc1", label: "服务健康",      endpoint: "GET /api/health",          status: "pass",     latency: 42  },
-  { id: "hc2", label: "认证服务",      endpoint: "GET /api/auth/session",    status: "checking"              },
-  { id: "hc3", label: "订阅 API",      endpoint: "GET /api/subscriptions",   status: "pending"               },
-  { id: "hc4", label: "数据库连接",    endpoint: "prisma.$connect()",        status: "pending"               },
-  { id: "hc5", label: "Stripe Webhook",endpoint: "POST /api/stripe/webhook", status: "pending"               },
-];
 
 const ENV_VARS: EnvVar[] = [
-  { key: "NODE_ENV",              value: "production",             secret: false },
-  { key: "NEXT_PUBLIC_APP_URL",   value: "https://staging-saas-billing.vercel.app", secret: false },
-  { key: "DATABASE_URL",          value: "",                       secret: true  },
-  { key: "NEXTAUTH_SECRET",       value: "",                       secret: true  },
-  { key: "STRIPE_SECRET_KEY",     value: "",                       secret: true  },
-  { key: "STRIPE_WEBHOOK_SECRET", value: "",                       secret: true  },
-  { key: "NEXTAUTH_URL",          value: "https://staging-saas-billing.vercel.app", secret: false },
+  { key: "NODE_ENV", value: "production", secret: false },
+  { key: "NEXT_PUBLIC_APP_URL", value: "https://staging-saas-billing.vercel.app", secret: false },
+  { key: "DATABASE_URL", value: "", secret: true },
+  { key: "NEXTAUTH_SECRET", value: "", secret: true },
+  { key: "STRIPE_SECRET_KEY", value: "", secret: true },
+  { key: "STRIPE_WEBHOOK_SECRET", value: "", secret: true },
+  { key: "NEXTAUTH_URL", value: "https://staging-saas-billing.vercel.app", secret: false },
 ];
 
 // ─── Stat item ────────────────────────────────────────────────────────────────
@@ -343,18 +292,75 @@ function StatItem({ icon: Icon, label, value, color = "text-foreground" }: {
 export default function DeployPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t, locale, setLocale } = useLocale();
   const state = location.state as { idea?: string; sessionId?: string } | null;
-  const idea = state?.idea ?? "未知项目";
+  const idea = state?.idea ?? t("unknownProject");
   const sessionId = state?.sessionId ?? "";
 
-  const [envTarget, setEnvTarget]     = useState<EnvTarget>("staging");
-  const [logs, setLogs]               = useState<LogLine[]>(INITIAL_LOGS);
-  const [steps, setSteps]             = useState<BuildStep[]>(INITIAL_STEPS);
-  const [health, setHealth]           = useState<HealthCheck[]>(INITIAL_HEALTH);
-  const [streamIdx, setStreamIdx]     = useState(0);
-  const [deployDone, setDeployDone]   = useState(false);
-  const [activeTab, setActiveTab]     = useState<"logs" | "env">("logs");
-  const [buildTime]                   = useState("58.3s");
+  // ─── Mock Data Inside Component ─────────────────────────────────────────────
+  const INITIAL_LOGS: LogLine[] = [
+    { id: "l1", type: "cmd", text: "celadon deploy --env staging --provider vercel", time: makeTime(95) },
+    { id: "l2", type: "info", text: t("mockDeployLogReadConfig"), time: makeTime(93) },
+    { id: "l3", type: "info", text: t("mockDeployLogVercelConnect"), time: makeTime(91) },
+    { id: "l4", type: "success", text: t("mockDeployLogAuthSuccess"), time: makeTime(90) },
+    { id: "l5", type: "cmd", text: "npm run build", time: makeTime(88) },
+    { id: "l6", type: "info", text: t("mockDeployLogNextBuild"), time: makeTime(85) },
+    { id: "l7", type: "info", text: t("mockDeployLogCollect"), time: makeTime(80) },
+    { id: "l8", type: "info", text: t("mockDeployLogTscCheck"), time: makeTime(75) },
+    { id: "l9", type: "success", text: t("mockDeployLogTscPass"), time: makeTime(72) },
+    { id: "l10", type: "info", text: t("mockDeployLogBundle"), time: makeTime(68) },
+    { id: "l11", type: "info", text: t("mockDeployLogImages"), time: makeTime(60) },
+    { id: "l12", type: "info", text: t("mockDeployLogStatic"), time: makeTime(55) },
+    { id: "l13", type: "success", text: t("mockDeployLogBuildSuccess"), time: makeTime(50) },
+    { id: "l14", type: "cmd", text: "vercel deploy --prebuilt --token $VERCEL_TOKEN", time: makeTime(48) },
+    { id: "l15", type: "info", text: t("mockDeployLogUpload"), time: makeTime(44) },
+    { id: "l16", type: "info", text: t("mockDeployLogEdgeNodes"), time: makeTime(38) },
+    { id: "l17", type: "success", text: t("mockDeployLogEdgeFinish"), time: makeTime(32) },
+    { id: "l18", type: "info", text: t("mockDeployLogEnvInject"), time: makeTime(28) },
+    { id: "l19", type: "success", text: t("mockDeployLogEnvFinish"), time: makeTime(25) },
+    { id: "l20", type: "cmd", text: "prisma migrate deploy --schema ./prisma/schema.prisma", time: makeTime(22) },
+    { id: "l21", type: "success", text: t("mockDeployLogDbMigrate"), time: makeTime(18) },
+  ];
+
+  const STREAM_LOGS: LogLine[] = [
+    { id: "s1", type: "info", text: t("mockDeployLogHealth"), time: "" },
+    { id: "s2", type: "info", text: "  GET /api/health → 200 OK (42ms)", time: "" },
+    { id: "s3", type: "info", text: "  GET /api/auth/session → 200 OK (89ms)", time: "" },
+    { id: "s4", type: "info", text: "  GET /api/subscriptions → 200 OK (131ms)", time: "" },
+    { id: "s5", type: "success", text: t("mockDeployLogHealthPass"), time: "" },
+    { id: "s6", type: "success", text: t("mockDeployLogSsl"), time: "" },
+    { id: "s7", type: "success", text: t("mockDeployLogCdn"), time: "" },
+    { id: "s8", type: "success", text: t("mockDeployLogSuccess"), time: "" },
+  ];
+
+  const INITIAL_STEPS: BuildStep[] = [
+    { id: "install", label: t("mockStepInstall"), sublabel: "npm ci --frozen-lockfile", status: "done", duration: "18.2s" },
+    { id: "typecheck", label: t("mockStepTsc"), sublabel: "tsc --noEmit", status: "done", duration: "4.1s" },
+    { id: "lint", label: t("mockStepLint"), sublabel: "eslint + prettier", status: "done", duration: "2.8s" },
+    { id: "build", label: t("mockStepBuild"), sublabel: "next build --prod", status: "done", duration: "23.4s" },
+    { id: "upload", label: t("mockStepUpload"), sublabel: "vercel deploy --prebuilt", status: "done", duration: "6.7s" },
+    { id: "migrate", label: t("mockStepMigrate"), sublabel: "prisma migrate deploy", status: "done", duration: "3.1s" },
+    { id: "health", label: t("mockStepHealth"), sublabel: "GET /api/health × 3", status: "active" },
+    { id: "ssl", label: t("mockStepSsl"), sublabel: t("mockLogSslIssued"), status: "pending" },
+    { id: "cdn", label: t("mockStepCdn"), sublabel: t("mockLogCdn"), status: "pending" },
+  ];
+
+  const INITIAL_HEALTH: HealthCheck[] = [
+    { id: "hc1", label: t("mockHcService"), endpoint: "GET /api/health", status: "pass", latency: 42 },
+    { id: "hc2", label: t("mockHcAuth"), endpoint: "GET /api/auth/session", status: "checking" },
+    { id: "hc3", label: t("mockHcSub"), endpoint: "GET /api/subscriptions", status: "pending" },
+    { id: "hc4", label: t("mockHcDb"), endpoint: "prisma.$connect()", status: "pending" },
+    { id: "hc5", label: "Stripe Webhook", endpoint: "POST /api/stripe/webhook", status: "pending" },
+  ];
+
+  const [envTarget, setEnvTarget] = useState<EnvTarget>("staging");
+  const [logs, setLogs] = useState<LogLine[]>(INITIAL_LOGS);
+  const [steps, setSteps] = useState<BuildStep[]>(INITIAL_STEPS);
+  const [health, setHealth] = useState<HealthCheck[]>(INITIAL_HEALTH);
+  const [streamIdx, setStreamIdx] = useState(0);
+  const [deployDone, setDeployDone] = useState(false);
+  const [activeTab, setActiveTab] = useState<"logs" | "env">("logs");
+  const [buildTime] = useState("58.3s");
   const [deployUrl, setDeployUrl] = useState("");
 
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -386,19 +392,19 @@ export default function DeployPage() {
       if (streamIdx === 1) {
         setHealth((prev) => prev.map((h) =>
           h.id === "hc2" ? { ...h, status: "pass", latency: 89 } :
-          h.id === "hc3" ? { ...h, status: "checking" } : h
+            h.id === "hc3" ? { ...h, status: "checking" } : h
         ));
       }
       if (streamIdx === 2) {
         setHealth((prev) => prev.map((h) =>
           h.id === "hc3" ? { ...h, status: "pass", latency: 131 } :
-          h.id === "hc4" ? { ...h, status: "checking" } : h
+            h.id === "hc4" ? { ...h, status: "checking" } : h
         ));
       }
       if (streamIdx === 3) {
         setHealth((prev) => prev.map((h) =>
           h.id === "hc4" ? { ...h, status: "pass", latency: 28 } :
-          h.id === "hc5" ? { ...h, status: "checking" } : h
+            h.id === "hc5" ? { ...h, status: "checking" } : h
         ));
       }
       if (streamIdx === 4) {
@@ -407,13 +413,13 @@ export default function DeployPage() {
         ));
         setSteps((prev) => prev.map((s) =>
           s.id === "health" ? { ...s, status: "done", duration: "3.2s" } :
-          s.id === "ssl"    ? { ...s, status: "active" } : s
+            s.id === "ssl" ? { ...s, status: "active" } : s
         ));
       }
       if (streamIdx === 5) {
         setSteps((prev) => prev.map((s) =>
           s.id === "ssl" ? { ...s, status: "done", duration: "1.4s" } :
-          s.id === "cdn" ? { ...s, status: "active" } : s
+            s.id === "cdn" ? { ...s, status: "active" } : s
         ));
       }
       if (streamIdx === 6) {
@@ -425,7 +431,7 @@ export default function DeployPage() {
         setDeployDone(true);
         setDeployUrl("https://staging-saas-billing.vercel.app");
         if (sessionId) {
-          apiDeploy(sessionId, envTarget).catch(() => {});
+          apiDeploy(sessionId, envTarget).catch(() => { });
         }
       }
     }, 1400 + Math.random() * 800);
@@ -434,8 +440,8 @@ export default function DeployPage() {
   }, [streamIdx]);
 
   const completedSteps = steps.filter((s) => s.status === "done").length;
-  const totalSteps     = steps.length;
-  const progress       = Math.round((completedSteps / totalSteps) * 100);
+  const totalSteps = steps.length;
+  const progress = Math.round((completedSteps / totalSteps) * 100);
 
   const shortIdea = idea.length > 32 ? idea.slice(0, 29) + "..." : idea;
 
@@ -445,12 +451,12 @@ export default function DeployPage() {
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="max-w-screen-2xl mx-auto px-4 h-14 flex items-center gap-4">
-            <button
-              onClick={() => navigate("/dev", { state: { idea, sessionId } })}
+          <button
+            onClick={() => navigate("/dev", { state: { idea, sessionId } })}
             className="flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
           >
             <ArrowLeft size={13} />
-            <span className="hidden sm:inline">开发</span>
+            <span className="hidden sm:inline">{t("dev")}</span>
           </button>
 
           <div className="flex-1 flex items-center justify-center">
@@ -483,11 +489,11 @@ export default function DeployPage() {
 
             {/* Iterate CTA */}
             <button
-              onClick={() => navigate("/iterate", { state: { idea, answers } })}
+              onClick={() => navigate("/iterate", { state: { idea, sessionId } })}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-mono text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 transition-all"
             >
               <RefreshCw size={11} />
-              <span>迭代</span>
+              <span>{t("iterate")}</span>
             </button>
           </div>
         </div>
@@ -499,16 +505,16 @@ export default function DeployPage() {
         {/* Stats strip */}
         <div className="border-b border-border bg-surface-1/60">
           <div className="max-w-screen-2xl mx-auto flex items-stretch flex-wrap">
-            <StatItem icon={Clock}    label="构建耗时" value={buildTime}          color="text-foreground"     />
-            <StatItem icon={Layers}   label="步骤完成" value={`${completedSteps}/${totalSteps}`} color="text-stage-deploy" />
-            <StatItem icon={Globe}    label="边缘节点" value="4"                  color="text-stage-clarify"  />
-            <StatItem icon={Cpu}      label="包大小"   value="847 kB"             color="text-foreground"     />
-            <StatItem icon={Shield}   label="环境变量" value={`${ENV_VARS.length}`} color="text-stage-prd"   />
+            <StatItem icon={Clock} label={t("deployBuildTime")} value={buildTime} color="text-foreground" />
+            <StatItem icon={Layers} label={t("deployStepsDone")} value={`${completedSteps}/${totalSteps}`} color="text-stage-deploy" />
+            <StatItem icon={Globe} label={t("deployNodes")} value="4" color="text-stage-clarify" />
+            <StatItem icon={Cpu} label={t("deployPkgSize")} value="847 kB" color="text-foreground" />
+            <StatItem icon={Shield} label={t("deployEnvCount")} value={`${ENV_VARS.length}`} color="text-stage-prd" />
             <div className="flex-1 flex items-center px-4 py-2 min-w-[120px]">
               <div className="w-full">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[9px] font-mono text-muted-foreground/40 uppercase tracking-wider">
-                    {deployDone ? "部署完成" : "部署中"}
+                    {deployDone ? t("deployStatusDone") : t("deployStatusInProcess")}
                   </span>
                   <span className={cn(
                     "text-[9px] font-mono",
@@ -537,7 +543,7 @@ export default function DeployPage() {
             <div className="p-3 border-b border-border flex items-center gap-2">
               <Box size={11} className="text-stage-deploy/70" />
               <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">
-                构建流水线
+                {t("buildPipeline")}
               </span>
               <div className={cn(
                 "ml-auto flex items-center gap-1",
@@ -547,7 +553,7 @@ export default function DeployPage() {
                   ? <CheckCircle2 size={11} />
                   : <Loader2 size={11} className="animate-spin" />}
                 <span className="text-[9px] font-mono">
-                  {deployDone ? "完成" : "进行中"}
+                  {deployDone ? t("deployFinish") : t("deployInProcess")}
                 </span>
               </div>
             </div>
@@ -563,16 +569,16 @@ export default function DeployPage() {
             <div className="p-3 border-t border-border bg-surface-1/40">
               <div className="text-[10px] font-mono text-muted-foreground/40 space-y-1">
                 <div className="flex justify-between">
-                  <span>提供商</span><span className="text-foreground/60">Vercel</span>
+                  <span>{t("deployProvider")}</span><span className="text-foreground/60">Vercel</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>区域</span><span className="text-foreground/60">Edge Global</span>
+                  <span>{t("deployRegion")}</span><span className="text-foreground/60">{t("mockLogGlobalEdge")}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>运行时</span><span className="text-foreground/60">Node.js 20.x</span>
+                  <span>{t("deployRuntime")}</span><span className="text-foreground/60">Node.js 20.x</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>环境</span>
+                  <span>{t("deployTarget")}</span>
                   <span className={envTarget === "production" ? "text-stage-deploy" : "text-stage-clarify"}>
                     {envTarget === "production" ? "Production" : "Staging"}
                   </span>
@@ -598,7 +604,7 @@ export default function DeployPage() {
                   )}
                 >
                   {tab === "logs" ? <Activity size={11} /> : <Shield size={11} />}
-                  {{ logs: "部署日志", env: "环境变量" }[tab]}
+                  {{ logs: t("deployLogs"), env: t("deployEnv") }[tab]}
                 </button>
               ))}
               {!deployDone && (
@@ -610,7 +616,7 @@ export default function DeployPage() {
               {deployDone && (
                 <div className="ml-auto mr-3 flex items-center gap-1.5">
                   <CheckCircle2 size={10} className="text-celadon" />
-                  <span className="text-[9px] font-mono text-celadon">SUCCESS</span>
+                  <span className="text-[9px] font-mono text-celadon">{t("deploySuccess").toUpperCase()}</span>
                 </div>
               )}
             </div>
@@ -638,15 +644,15 @@ export default function DeployPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs font-mono font-semibold text-foreground mb-0.5">
-                        {envTarget === "staging" ? "Staging" : "Production"} 环境变量
+                        {envTarget === "staging" ? t("deployStaging") : t("deployProduction")} {t("deployEnv")}
                       </div>
                       <div className="text-[10px] font-mono text-muted-foreground/40">
-                        {ENV_VARS.length} 个变量 · {ENV_VARS.filter((e) => e.secret).length} 个加密
+                        {ENV_VARS.length} units · {ENV_VARS.filter((e) => e.secret).length} encrypted
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-stage-prd/25 bg-stage-prd/8">
                       <Shield size={10} className="text-stage-prd/70" />
-                      <span className="text-[9px] font-mono text-stage-prd/70">端对端加密</span>
+                      <span className="text-[9px] font-mono text-stage-prd/70">{t("endToEndEncryption")}</span>
                     </div>
                   </div>
                 </div>
@@ -667,7 +673,7 @@ export default function DeployPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-mono font-semibold text-foreground mb-0.5">
-                      部署成功 · 实时预览
+                      {t("deploySuccess")} · {t("deployLive")}
                     </div>
                     <a
                       href={deployUrl}
@@ -679,7 +685,7 @@ export default function DeployPage() {
                     </a>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <CopyBtn text={deployUrl} label="复制" />
+                    <CopyBtn text={deployUrl} label={t("copy")} />
                     <a
                       href={deployUrl}
                       target="_blank"
@@ -687,7 +693,7 @@ export default function DeployPage() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-celadon text-primary-foreground text-xs font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow"
                     >
                       <ExternalLink size={11} />
-                      <span>打开预览</span>
+                      <span>{t("deployOpen")}</span>
                     </a>
                   </div>
                 </div>
@@ -703,19 +709,19 @@ export default function DeployPage() {
               <div className="p-3 border-b border-border flex items-center gap-2">
                 <Wifi size={11} className="text-muted-foreground/40" />
                 <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">
-                  健康检查
+                  {t("deployHealth")}
                 </span>
                 <div className={cn(
                   "ml-auto flex items-center gap-1",
                   health.every((h) => h.status === "pass") ? "text-celadon" :
-                  health.some((h) => h.status === "fail")  ? "text-destructive" :
-                  "text-stage-deploy"
+                    health.some((h) => h.status === "fail") ? "text-destructive" :
+                      "text-stage-deploy"
                 )}>
                   {health.every((h) => h.status === "pass")
-                    ? <><CheckCircle2 size={11} /><span className="text-[9px] font-mono">全部通过</span></>
+                    ? <><CheckCircle2 size={11} /><span className="text-[9px] font-mono">{t("deployHealthPass")}</span></>
                     : health.some((h) => h.status === "fail")
-                    ? <><AlertCircle size={11} /><span className="text-[9px] font-mono">异常</span></>
-                    : <><Loader2 size={11} className="animate-spin" /><span className="text-[9px] font-mono">检查中</span></>
+                      ? <><AlertCircle size={11} /><span className="text-[9px] font-mono">{t("deployHealthFail")}</span></>
+                      : <><Loader2 size={11} className="animate-spin" /><span className="text-[9px] font-mono">{t("deployHealthChecking")}</span></>
                   }
                 </div>
               </div>
@@ -729,23 +735,23 @@ export default function DeployPage() {
               <div className="m-3 rounded-xl border border-border bg-surface-1/60 overflow-hidden">
                 <div className="px-4 py-3 border-b border-border">
                   <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">
-                    部署信息
+                    {t("deployInfo")}
                   </div>
                 </div>
                 <div className="px-4 py-3 space-y-2 text-[11px] font-mono">
                   {[
-                    ["目标环境", envTarget === "staging" ? "Staging" : "Production"],
-                    ["触发方式", "Celadon AI"],
-                    ["Git Ref",  "main@f4b2d6"],
-                    ["部署 ID",  "dpl_8x2k3n"],
-                    ["时间戳",   new Date().toLocaleString("zh-CN", { hour: "2-digit", minute: "2-digit" })],
+                    [t("deployTarget"), envTarget === "staging" ? t("deployStaging") : t("deployProduction")],
+                    [t("deployMethod"), "Celadon AI"],
+                    [t("deployGitRef"), "main@f4b2d6"],
+                    [t("deployId"), "dpl_8x2k3n"],
+                    [t("deployTime"), new Date().toLocaleString(locale === "zh" ? "zh-CN" : "en-US", { hour: "2-digit", minute: "2-digit" })],
                   ].map(([k, v]) => (
                     <div key={k} className="flex justify-between gap-2">
                       <span className="text-muted-foreground/40">{k}</span>
                       <span className={cn(
                         "text-right truncate",
-                        k === "目标环境" && envTarget === "production" ? "text-stage-deploy" :
-                        k === "目标环境" ? "text-stage-clarify" : "text-foreground/60"
+                        k === t("deployTarget") && envTarget === "production" ? "text-stage-deploy" :
+                          k === t("deployTarget") ? "text-stage-clarify" : "text-foreground/60"
                       )}>{v}</span>
                     </div>
                   ))}
@@ -760,10 +766,10 @@ export default function DeployPage() {
                   <div className="rounded-xl border border-celadon/20 bg-celadon/6 px-4 py-3">
                     <div className="flex items-center gap-2 mb-1">
                       <CheckCircle2 size={12} className="text-celadon" />
-                      <span className="text-xs font-mono text-celadon font-semibold">Staging 已就绪</span>
+                      <span className="text-xs font-mono text-celadon font-semibold">{t("deployStagingReady")}</span>
                     </div>
                     <p className="text-[10px] font-mono text-muted-foreground/50 leading-relaxed">
-                      所有检查通过，可以推送到生产环境
+                      {t("deployStagingReadyDesc")}
                     </p>
                   </div>
                   {envTarget === "staging" ? (
@@ -773,7 +779,7 @@ export default function DeployPage() {
                       style={{ background: "hsl(var(--stage-deploy))" }}
                     >
                       <Rocket size={12} />
-                      <span>推送到 Production</span>
+                      <span>{t("deployPromote")}</span>
                       <ChevronRight size={11} />
                     </button>
                   ) : (
@@ -781,7 +787,7 @@ export default function DeployPage() {
                       className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-celadon text-primary-foreground text-xs font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow"
                     >
                       <CheckCircle2 size={12} />
-                      <span>已部署到 Production</span>
+                      <span>{t("deployStatusDone")}</span>
                     </button>
                   )}
                   <button
@@ -789,14 +795,14 @@ export default function DeployPage() {
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-border text-xs font-mono text-muted-foreground hover:text-foreground hover:border-muted-foreground/40 transition-all"
                   >
                     <RefreshCw size={11} />
-                    <span>开始迭代</span>
+                    <span>{t("deployIterate")}</span>
                   </button>
                 </>
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Loader2 size={11} className="text-stage-deploy animate-spin" />
-                    <span className="text-[10px] font-mono text-stage-deploy">正在部署到 Staging...</span>
+                    <span className="text-[10px] font-mono text-stage-deploy">{t("deployStatusInProcess")}...</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
                     <div
@@ -804,7 +810,7 @@ export default function DeployPage() {
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <span className="text-[9px] font-mono text-muted-foreground/30">{progress}% · {completedSteps}/{totalSteps} 步骤完成</span>
+                  <span className="text-[9px] font-mono text-muted-foreground/30">{progress}% · {completedSteps}/{totalSteps} {t("deployStepsDone")}</span>
                 </div>
               )}
             </div>

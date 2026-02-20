@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocale } from "@/contexts/LocaleContext";
 import { Zap } from "lucide-react";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { register } = useAuth();
+  const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -39,7 +41,7 @@ export default function RegisterPage() {
         navigate("/", { replace: true });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "注册失败");
+      setError(e instanceof Error ? e.message : t("registerError"));
     } finally {
       setLoading(false);
     }
@@ -54,8 +56,8 @@ export default function RegisterPage() {
               <Zap size={20} className="text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-xl font-mono">注册</CardTitle>
-          <CardDescription>创建 Celadon 账号</CardDescription>
+          <CardTitle className="text-xl font-mono">{t("registerTitle")}</CardTitle>
+          <CardDescription>{t("registerSubtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -65,7 +67,7 @@ export default function RegisterPage() {
               </div>
             )}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">邮箱</label>
+              <label className="text-sm font-medium text-foreground">{t("emailLabel")}</label>
               <Input
                 type="email"
                 placeholder="you@example.com"
@@ -77,7 +79,7 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">密码</label>
+              <label className="text-sm font-medium text-foreground">{t("passwordLabel")}</label>
               <Input
                 type="password"
                 value={password}
@@ -89,12 +91,12 @@ export default function RegisterPage() {
               />
             </div>
             <Button type="submit" className="w-full bg-celadon hover:bg-celadon-glow" disabled={loading}>
-              {loading ? "注册中…" : "注册"}
+              {loading ? t("registering") : t("registerButton")}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              已有账号？{" "}
+              {t("hasAccount")}{" "}
               <Link to="/login" className="text-celadon hover:underline font-mono">
-                登录
+                {t("loginButton")}
               </Link>
             </p>
           </form>

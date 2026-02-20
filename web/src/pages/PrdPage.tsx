@@ -22,14 +22,15 @@ interface TocItem {
 // ─── Pipeline bar ─────────────────────────────────────────────────────────────
 
 const STAGES = [
-  { id: "clarify", sub: "Clarify", Icon: MessageSquare },
-  { id: "prd", sub: "PRD", Icon: FileText },
-  { id: "dev", sub: "Dev", Icon: Code2 },
-  { id: "deploy", sub: "Deploy", Icon: Rocket },
-  { id: "iterate", sub: "Iterate", Icon: RefreshCw },
+  { id: "clarify", sub: "stageClarify", Icon: MessageSquare },
+  { id: "prd", sub: "stagePrd", Icon: FileText },
+  { id: "dev", sub: "stageDev", Icon: Code2 },
+  { id: "deploy", sub: "stageDeploy", Icon: Rocket },
+  { id: "iterate", sub: "stageIterate", Icon: RefreshCw },
 ];
 
 function PipelineBar() {
+  const { t } = useLocale();
   return (
     <div className="flex items-center gap-0">
       {STAGES.map((s, i) => {
@@ -52,7 +53,7 @@ function PipelineBar() {
                 "text-[9px] font-mono",
                 (done || active) ? "text-celadon" : "text-muted-foreground/30",
               )}>
-                {s.sub}
+                {t(s.sub)}
               </span>
             </div>
             {i < STAGES.length - 1 && (
@@ -416,7 +417,7 @@ export default function PrdPage() {
           </div>
           {!generating && (
             <div className="p-4 border-t border-border">
-              <div className="text-[10px] font-mono text-muted-foreground/40">{wordCount.toLocaleString()} 词 · v0.1.0</div>
+              <div className="text-[10px] font-mono text-muted-foreground/40">{wordCount.toLocaleString()} {t("prdWords")} · v0.1.0</div>
             </div>
           )}
         </aside>

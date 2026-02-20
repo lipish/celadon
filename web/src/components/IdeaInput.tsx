@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { ArrowRight, Sparkles, Command, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/contexts/LocaleContext";
 
 interface IdeaInputProps {
   onSubmit?: (idea: string) => void;
@@ -11,18 +12,20 @@ interface IdeaInputProps {
   defaultValue?: string;
 }
 
-const placeholders = [
-  "一个帮助独立开发者管理 SaaS 订阅的后台系统...",
-  "基于 AI 的代码审查工具，自动检测安全漏洞...",
-  "一个实时协作的 API 设计平台，支持团队共同编写 OpenAPI 规范...",
-  "帮助工程师追踪技术债务并自动生成重构建议的工具...",
-];
-
 export function IdeaInput({ onSubmit, className, disabled, loading, error, defaultValue }: IdeaInputProps) {
+  const { t } = useLocale();
   const [value, setValue] = useState(defaultValue ?? "");
   const [isFocused, setIsFocused] = useState(false);
+
+  const placeholders = useMemo(() => [
+    t("inputPlaceholder1"),
+    t("inputPlaceholder2"),
+    t("inputPlaceholder3"),
+    t("inputPlaceholder4"),
+  ], [t]);
+
   const [placeholderIndex] = useState(() =>
-    Math.floor(Math.random() * placeholders.length)
+    Math.floor(Math.random() * 4)
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -105,11 +108,11 @@ export function IdeaInput({ onSubmit, className, disabled, loading, error, defau
       <div className="flex items-center justify-between px-4 py-3 border-t border-border">
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-muted-foreground/50">
-            {charCount > 0 ? `${charCount} chars` : "描述你的想法"}
+            {charCount > 0 ? `${charCount} ${t("charCount")}` : t("hintInput")}
           </span>
           <div className="flex items-center gap-1 text-xs font-mono text-muted-foreground/40">
             <Command size={10} />
-            <span>+ Enter 提交</span>
+            <span>+ Enter {t("submitHint")}</span>
           </div>
         </div>
 
@@ -126,11 +129,11 @@ export function IdeaInput({ onSubmit, className, disabled, loading, error, defau
           {loading || disabled ? (
             <>
               <Loader2 size={14} className="animate-spin" />
-              <span>正在启动...</span>
+              <span>{t("startingBtn")}</span>
             </>
           ) : (
             <>
-              <span>启动</span>
+              <span>{t("startBtn")}</span>
               <ArrowRight size={14} />
             </>
           )}

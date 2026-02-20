@@ -101,7 +101,7 @@ export default function Index() {
         },
       });
     } catch (e) {
-      setStartError(e instanceof Error ? e.message : "启动失败");
+      setStartError(e instanceof Error ? e.message : t("startError"));
     } finally {
       setStarting(false);
     }
@@ -184,7 +184,7 @@ export default function Index() {
                   <DropdownMenuLabel className="px-2 py-2">
                     <div className="flex flex-col">
                       <span className="text-xs text-foreground font-bold truncate">{email}</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">Standard Account</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">{t("standardAccount")}</span>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -203,7 +203,7 @@ export default function Index() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-xs py-2">
                     <LifeBuoy size={14} className="mr-2" />
-                    <span>Support</span>
+                    <span>{t("support")}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -298,7 +298,7 @@ export default function Index() {
                         onClick={() => setShowWaitingList(false)}
                         className="flex-1 h-12 rounded-xl border border-border font-mono text-sm font-bold hover:bg-surface-3 transition-colors"
                       >
-                        Cancel
+                        {t("cancel")}
                       </button>
                       <button
                         type="submit"
@@ -358,7 +358,7 @@ export default function Index() {
                       <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Terminal size={10} className="text-celadon" />
-                          {project.status === "ACTIVE" ? "Active" : "Paused"}
+                          {project.status === "ACTIVE" ? t("active") : t("paused")}
                         </span>
                       </div>
                       <ChevronRight
@@ -425,7 +425,7 @@ export default function Index() {
               <div className="space-y-6">
                 <div className="inline-flex items-center gap-2 py-1 rounded-full text-celadon text-[10px] font-mono font-bold uppercase tracking-widest">
                   <Sparkles size={12} />
-                  <span>The Core Engine</span>
+                  <span>{t("coreEngine")}</span>
                 </div>
                 <h3 className="text-4xl font-mono font-bold tracking-tight">{t("interactiveLoopTitle")}</h3>
                 <p className="text-muted-foreground font-mono leading-relaxed text-lg">
@@ -481,7 +481,7 @@ export default function Index() {
                       <div className="ml-12 p-4 rounded-xl border border-border bg-surface-2 animate-pulse space-y-2">
                         <div className="flex items-center gap-2 mb-2">
                           <Code2 size={12} className="text-muted-foreground" />
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase">EXECUTING ZENE...</span>
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase">{t("executingZene")}</span>
                         </div>
                         <div className="h-2 bg-muted/40 rounded w-full" />
                         <div className="h-2 bg-muted/40 rounded w-[70%]" />
@@ -535,12 +535,12 @@ export default function Index() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 rounded-xl bg-background border border-border">
-                      <div className="text-[10px] font-mono text-muted-foreground/50 uppercase mb-1">Persistence</div>
-                      <div className="text-sm font-mono font-bold">100% Artifacts Saved</div>
+                      <div className="text-[10px] font-mono text-muted-foreground/50 uppercase mb-1">{t("persistenceTitle")}</div>
+                      <div className="text-sm font-mono font-bold">{t("artifactsSaved")}</div>
                     </div>
                     <div className="p-4 rounded-xl bg-background border border-border">
                       <div className="text-[10px] font-mono text-muted-foreground/50 uppercase mb-1">Versioning</div>
-                      <div className="text-sm font-mono font-bold">Git Integrated</div>
+                      <div className="text-sm font-mono font-bold">{t("gitIntegrated")}</div>
                     </div>
                   </div>
 
@@ -572,8 +572,8 @@ export default function Index() {
 
                   <div className="p-8 space-y-4">
                     <div className="space-y-1">
-                      <p className="text-muted-foreground/40"># Initial Deployment Successful</p>
-                      <p className="text-celadon">$ celadon iterate --refine "Add Stripe integration"</p>
+                      <p className="text-muted-foreground/40"># {t("terminalTitle")}</p>
+                      <p className="text-celadon">$ {t("terminalCommand")}</p>
                     </div>
 
                     <div className="pl-4 border-l border-border space-y-2">
@@ -646,7 +646,7 @@ function ExampleCard({ title, desc, status, commits, time }: {
         <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
           <span>{time}</span>
           <span className="w-1 h-1 rounded-full bg-border" />
-          <span>{commits} commits</span>
+          <span>{commits} {t("commitsCount")}</span>
         </div>
         <button className="px-3 py-1.5 rounded-lg bg-surface-3 border border-border text-[10px] uppercase font-mono font-bold flex items-center gap-1 text-muted-foreground hover:text-celadon hover:border-celadon/30 transition-all">
           {t("viewDetails")}

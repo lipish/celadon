@@ -19,15 +19,16 @@ interface Message {
 
 // ─── Pipeline mini ───────────────────────────────────────────────────────────
 
-const STAGE_ICONS = [
-  { id: "clarify", label: "澄清", sub: "Clarify", Icon: MessageSquare },
-  { id: "prd", label: "需求", sub: "PRD", Icon: FileText },
-  { id: "dev", label: "开发", sub: "Dev", Icon: Code2 },
-  { id: "deploy", label: "部署", sub: "Deploy", Icon: Rocket },
-  { id: "iterate", label: "迭代", sub: "Iterate", Icon: RefreshCw },
-];
-
 function PipelineMini({ done }: { done: number }) {
+  const { t } = useLocale();
+  const STAGE_ICONS = [
+    { id: "clarify", label: t("stageClarify"), sub: "Clarify", Icon: MessageSquare },
+    { id: "prd", label: t("stagePrd"), sub: "PRD", Icon: FileText },
+    { id: "dev", label: t("stageDev"), sub: "Dev", Icon: Code2 },
+    { id: "deploy", label: t("stageDeploy"), sub: "Deploy", Icon: Rocket },
+    { id: "iterate", label: t("stageIterate"), sub: "Iterate", Icon: RefreshCw },
+  ];
+
   return (
     <div className="flex items-center gap-0">
       {STAGE_ICONS.map((s, i) => {
@@ -88,6 +89,7 @@ function TypingDots() {
 
 function MessageBubble({ message }: { message: Message }) {
   const isAssistant = message.role === "assistant";
+  const { t } = useLocale();
   return (
     <div className={cn("flex gap-3 group", isAssistant ? "" : "flex-row-reverse")}>
       <div className="flex-shrink-0 mt-1">
@@ -97,7 +99,7 @@ function MessageBubble({ message }: { message: Message }) {
           </div>
         ) : (
           <div className="w-7 h-7 rounded-lg bg-surface-3 border border-border flex items-center justify-center">
-            <span className="text-[9px] font-mono text-muted-foreground">me</span>
+            <span className="text-[9px] font-mono text-muted-foreground">{t("me")}</span>
           </div>
         )}
       </div>
@@ -190,7 +192,7 @@ export default function ClarifyPage() {
             setMessages(convToMessages(s.conversation));
           }
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setLoaded(true));
     }
     if (initialConversation?.length) setLoaded(true);
@@ -216,7 +218,7 @@ export default function ClarifyPage() {
         { id: crypto.randomUUID(), role: "assistant", content: res.assistant_reply, timestamp: now() },
       ]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "请求失败");
+      setError(e instanceof Error ? e.message : t("requestFailed"));
     } finally {
       setIsTyping(false);
     }
@@ -276,10 +278,10 @@ export default function ClarifyPage() {
         <aside className="hidden lg:flex flex-col w-72 border-r border-border bg-surface-1/50 p-6 gap-6 flex-shrink-0">
           <div>
             <div className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest mb-3">
-              原始想法
+              {t("originalIdea")}
             </div>
             <div className="rounded-xl border border-celadon/20 bg-celadon/5 p-4">
-              <p className="text-sm text-foreground leading-relaxed">{idea || "（无内容）"}</p>
+              <p className="text-sm text-foreground leading-relaxed">{idea || t("noIdea")}</p>
             </div>
           </div>
         </aside>
@@ -303,7 +305,7 @@ export default function ClarifyPage() {
             {!loaded && messages.length === 0 && (
               <div className="flex items-center gap-3">
                 <Loader2 size={16} className="text-celadon animate-spin" />
-                <span className="text-sm font-mono text-muted-foreground">加载对话...</span>
+                <span className="text-sm font-mono text-muted-foreground">{t("loadingChat")}</span>
               </div>
             )}
             {messages.map((msg) => (
@@ -334,7 +336,7 @@ export default function ClarifyPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={isTyping ? "Celadon 正在思考..." : "输入你的回答... (Enter 发送，Shift+Enter 换行)"}
+                  placeholder={isTyping ? t("thinkingPlaceholder") : t("replyPlaceholder")}
                   disabled={isTyping}
                   rows={3}
                   className={cn(
@@ -357,7 +359,7 @@ export default function ClarifyPage() {
               </div>
               <div className="mt-2 px-1">
                 <span className="text-[10px] font-mono text-muted-foreground/30">
-                  Enter 发送 · Shift+Enter 换行
+                  {t("submitHintClarify")}
                 </span>
               </div>
             </div>
