@@ -193,9 +193,9 @@ export async function apiLogin(email: string, password: string): Promise<AuthRes
   return data as unknown as AuthResult;
 }
 
-export async function apiMe(): Promise<{ email: string }> {
+export async function apiMe(): Promise<{ email: string; is_admin: boolean }> {
   const data = await getJson("/api/me");
-  return data as unknown as { email: string };
+  return data as unknown as { email: string; is_admin: boolean };
 }
 
 export async function apiJoinWaitingList(email: string, idea: string) {

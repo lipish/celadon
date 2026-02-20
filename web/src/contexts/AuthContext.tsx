@@ -19,6 +19,7 @@ import {
 interface AuthState {
     token: string | null;
     email: string | null;
+    isAdmin: boolean;
     loading: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string) => Promise<void>;
@@ -30,6 +31,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(getStoredToken);
     const [email, setEmail] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(!!getStoredToken());
 
     // 启动时：如果有 token 则获取用户信息
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         apiMe()
             .then((res) => {
                 setEmail(res.email);
+                setIsAdmin(res.is_admin);
                 setToken(stored);
             })
             .catch(() => {
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // clearStoredToken(); 
                 setToken(null);
                 setEmail(null);
+                setIsAdmin(false);
             })
             .finally(() => setLoading(false));
     }, []);
@@ -61,8 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             const me = await apiMe();
             setEmail(me.email);
+            setIsAdmin(me.is_admin);
         } catch {
             setEmail(email); // fallback
+            setIsAdmin(false);
         }
     }, []);
 
@@ -77,11 +83,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await apiLogout();
         setToken(null);
         setEmail(null);
+        setIsAdmin(false);
     }, []);
 
     const value = useMemo(
-        () => ({ token, email, loading, login, register, logout }),
-        [token, email, loading, login, register, logout]
+        () => ({ token, email, isAdmin, loading, login, register, logout }),
+        [token, email, isAdmin, loading, login, register, logout]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

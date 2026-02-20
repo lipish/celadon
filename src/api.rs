@@ -313,7 +313,14 @@ async fn me(
     let email = auth::get_user_email(pool, user_id)
         .await
         .map_err(|e| ApiError(e.to_string()))?;
-    Ok(Json(json!({ "email": email })))
+    
+    let admin_email = std::env::var("CELADON_ADMIN_EMAIL").ok();
+    let is_admin = admin_email.map(|a| a == email).unwrap_or(false);
+
+    Ok(Json(json!({ 
+        "email": email,
+        "is_admin": is_admin
+    })))
 }
 
 async fn logout(
@@ -350,8 +357,9 @@ async fn check_admin(
         .await
         .map_err(|e| ApiError(e.to_string()))?;
 
-    // 为了演示，我们默认第一个注册的用户或指定邮箱为管理员
-    let admin_email = std::env::var("CELADON_ADMIN_EMAIL").unwrap_or_else(|_| email.clone());
+    let admin_email = std::env::var("CELADON_ADMIN_EMAIL")
+        .map_err(|_| ApiError("未配置管理员邮箱".to_string()))?;
+
     if email != admin_email {
          return Err(ApiError("权限不足".to_string()));
     }

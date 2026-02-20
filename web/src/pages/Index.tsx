@@ -58,7 +58,7 @@ export default function Index() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, locale, setLocale } = useLocale();
-  const { email, logout } = useAuth();
+  const { email, logout, isAdmin } = useAuth();
   const returnedIdea = (location.state as { idea?: string })?.idea ?? "";
 
   const [recentProjects, setRecentProjects] = useState<ProjectItem[]>([]);
@@ -192,13 +192,15 @@ export default function Index() {
                     <User size={14} className="mr-2" />
                     <span>{t("profile")}</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => navigate("/settings")}
-                    className="text-xs py-2"
-                  >
-                    <Settings size={14} className="mr-2 text-celadon" />
-                    <span>{t("settings")}</span>
-                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      onClick={() => navigate("/settings")}
+                      className="text-xs py-2"
+                    >
+                      <Settings size={14} className="mr-2 text-celadon" />
+                      <span>{t("settings")}</span>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem className="text-xs py-2">
                     <Key size={14} className="mr-2" />
                     <span>{t("changePassword")}</span>

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGetAdminSettings, apiUpdateAdminSetting, type SystemSetting } from "@/lib/api";
 import { useLocale } from "@/contexts/LocaleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
     Settings,
     Save,
@@ -17,6 +18,7 @@ import {
 export default function AdminSettingsPage() {
     const { t } = useLocale();
     const navigate = useNavigate();
+    const { isAdmin, loading: authLoading } = useAuth();
     const [settings, setSettings] = useState<SystemSetting[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
@@ -24,8 +26,12 @@ export default function AdminSettingsPage() {
     const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!authLoading && !isAdmin) {
+            navigate("/", { replace: true });
+            return;
+        }
         loadSettings();
-    }, []);
+    }, [isAdmin, authLoading, navigate]);
 
     const loadSettings = async () => {
         try {
