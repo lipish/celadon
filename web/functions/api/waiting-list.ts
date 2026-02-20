@@ -1,3 +1,7 @@
+/**
+ * Cloudflare Pages Function for processing Waitlist submissions.
+ * Uses Cloudflare D1 for native, serverless persistence.
+ */
 interface Env {
     DB: D1Database;
 }
