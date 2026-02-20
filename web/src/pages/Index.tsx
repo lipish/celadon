@@ -192,8 +192,11 @@ export default function Index() {
                     <User size={14} className="mr-2" />
                     <span>{t("profile")}</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-xs py-2">
-                    <Settings size={14} className="mr-2" />
+                  <DropdownMenuItem
+                    onClick={() => navigate("/settings")}
+                    className="text-xs py-2"
+                  >
+                    <Settings size={14} className="mr-2 text-celadon" />
                     <span>{t("settings")}</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem className="text-xs py-2">

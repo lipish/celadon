@@ -60,3 +60,45 @@ pub async fn save_user_state(pool: &Pool, user_id: Uuid, state: &StateStore) -> 
     .map_err(|e| format!("写入用户状态失败: {e}"))?;
     Ok(())
 }
+
+/// 获取全局系统设置
+pub async fn get_system_setting(pool: &Pool, key: &str) -> AppResult<Option<String>> {
+    let row = sqlx::query("SELECT value FROM system_settings WHERE key = $1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| format!("读取系统设置失败: {e}"))?;
+    Ok(row.map(|r| r.get("value")))
+}
+
+/// 更新或创建全局系统设置
+pub async fn set_system_setting(pool: &Pool, key: &str, value: &str) -> AppResult<()> {
+    sqlx::query(
+        "INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, now())
+         ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()",
+    )
+    .bind(key)
+    .bind(value)
+    .execute(pool)
+    .await
+    .map_err(|e| format!("执行系统设置更新失败: {e}"))?;
+    Ok(())
+}
+
+/// 获取所有系统设置
+pub async fn list_system_settings(pool: &Pool) -> AppResult<Value> {
+    let rows = sqlx::query("SELECT key, value, description FROM system_settings")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("读取所有系统设置失败: {e}"))?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(json!({
+            "key": row.get::<String, _>("key"),
+            "value": row.get::<String, _>("value"),
+            "description": row.get::<Option<String>, _>("description"),
+        }));
+    }
+    Ok(Value::Array(result))
+}

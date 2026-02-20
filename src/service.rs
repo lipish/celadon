@@ -31,8 +31,8 @@ impl CeladonService {
             StateStore::default()
         };
         migrate_idea_events_to_conversation(&mut state);
-        let llm_gateway = LlmGateway::from_env()
-            .map_err(|e| format!("{e}. 请设置 DEEPSEEK_API_KEY 环境变量"))?;
+        let llm_gateway = LlmGateway::load(None).await
+            .map_err(|e| format!("{e}. 请设置 LLM API KEY"))?;
         Ok(Self {
             storage_dir,
             state,
@@ -53,8 +53,8 @@ impl CeladonService {
         migrate_idea_events_to_conversation(&mut state);
         let user_dir = storage_dir.join(user_id.to_string());
         fs::create_dir_all(&user_dir)?;
-        let llm_gateway = LlmGateway::from_env()
-            .map_err(|e| format!("{e}. 请设置 DEEPSEEK_API_KEY 环境变量"))?;
+        let llm_gateway = LlmGateway::load(Some(&pool)).await
+            .map_err(|e| format!("{e}. 请在系统设置中配置 LLM API KEY"))?;
         Ok(Self {
             storage_dir: user_dir,
             state,
@@ -554,6 +554,21 @@ impl CeladonService {
         if let Some(project) = self.state.projects.get_mut(project_id) {
             project.updated_at = now_timestamp();
         }
+    }
+
+    pub async fn list_all_settings(&self) -> AppResult<Value> {
+        let pool = self.pool.as_ref().ok_or_else(|| "数据库未启用".to_string())?;
+        db::list_system_settings(pool).await
+    }
+
+    pub async fn update_setting(&mut self, key: &str, value: &str) -> AppResult<()> {
+        let pool = self.pool.as_ref().ok_or_else(|| "数据库未启用".to_string())?;
+        db::set_system_setting(pool, key, value).await?;
+        // 立即尝试重载 Gateway
+        if let Ok(new_gateway) = LlmGateway::load(Some(pool)).await {
+            self.llm_gateway = new_gateway;
+        }
+        Ok(())
     }
 }
 

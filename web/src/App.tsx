@@ -14,6 +14,7 @@ import DeployPage from "./pages/DeployPage";
 import IteratePage from "./pages/IteratePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import AdminSettingsPage from "./pages/AdminSettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/dev" element={<RequireAuth><DevPage /></RequireAuth>} />
               <Route path="/deploy" element={<RequireAuth><DeployPage /></RequireAuth>} />
               <Route path="/iterate" element={<RequireAuth><IteratePage /></RequireAuth>} />
+              <Route path="/settings" element={<RequireAuth><AdminSettingsPage /></RequireAuth>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

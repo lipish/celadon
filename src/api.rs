@@ -117,7 +117,9 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
             .route("/api/register", post(register))
             .route("/api/login", post(login))
             .route("/api/me", get(me))
-            .route("/api/logout", post(logout));
+            .route("/api/logout", post(logout))
+            .route("/api/admin/settings", get(get_all_settings))
+            .route("/api/admin/settings", post(update_system_setting));
     }
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -334,4 +336,50 @@ async fn join_waiting_list(
     let service = make_service(&state, None).await?;
     let out = service.join_waiting_list(req.email, req.idea).await.map_err(ApiError::from)?;
     Ok(Json(out))
+}
+
+async fn check_admin(
+    state: &ApiState,
+    headers: &axum::http::HeaderMap,
+) -> Result<CeladonService, ApiError> {
+    let pool = state.pool.as_ref().ok_or_else(|| ApiError("未启用用户系统".to_string()))?;
+    let user_id = resolve_user_id(state, headers).await?
+        .ok_or_else(|| ApiError("需要登录".to_string()))?;
+    
+    let email = auth::get_user_email(pool, user_id)
+        .await
+        .map_err(|e| ApiError(e.to_string()))?;
+
+    // 为了演示，我们默认第一个注册的用户或指定邮箱为管理员
+    let admin_email = std::env::var("CELADON_ADMIN_EMAIL").unwrap_or_else(|_| email.clone());
+    if email != admin_email {
+         return Err(ApiError("权限不足".to_string()));
+    }
+
+    make_service(state, Some(user_id)).await
+}
+
+async fn get_all_settings(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+) -> ApiResult {
+    let service = check_admin(&state, &headers).await?;
+    let out = service.list_all_settings().await.map_err(ApiError::from)?;
+    Ok(Json(out))
+}
+
+#[derive(Deserialize)]
+struct UpdateSettingRequest {
+    key: String,
+    value: String,
+}
+
+async fn update_system_setting(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<UpdateSettingRequest>,
+) -> ApiResult {
+    let mut service = check_admin(&state, &headers).await?;
+    service.update_setting(&req.key, &req.value).await.map_err(ApiError::from)?;
+    Ok(Json(json!({ "ok": true })))
 }

@@ -211,3 +211,19 @@ export async function apiLogout(): Promise<void> {
   }
   clearStoredToken();
 }
+
+export interface SystemSetting {
+  key: string;
+  value: string;
+  description: string | null;
+}
+
+export async function apiGetAdminSettings(): Promise<SystemSetting[]> {
+  const data = await getJson("/api/admin/settings");
+  return data as unknown as SystemSetting[];
+}
+
+export async function apiUpdateAdminSetting(key: string, value: string): Promise<{ ok: boolean }> {
+  const data = await postJson("/api/admin/settings", { key, value });
+  return data as unknown as { ok: boolean };
+}

@@ -94,7 +94,55 @@ impl LlmGateway {
             })?;
         let client = LlmClient::deepseek(&api_key)
             .map_err(|e| format!("初始化 LLM 客户端失败: {e}"))?;
-        let model = std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
+        let model =
+            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
+        Ok(Self {
+            client: Arc::new(client),
+            model,
+        })
+    }
+
+    pub async fn load(pool: Option<&crate::db::Pool>) -> Result<Self, String> {
+        let mut api_key = None;
+        let mut model = None;
+
+        if let Some(p) = pool {
+            if let Ok(Some(val)) = crate::db::get_system_setting(p, "DEEPSEEK_API_KEY").await {
+                if !val.trim().is_empty() {
+                    api_key = Some(val);
+                }
+            }
+            if api_key.is_none() {
+                if let Ok(Some(val)) = crate::db::get_system_setting(p, "OPENAI_API_KEY").await {
+                    if !val.trim().is_empty() {
+                        api_key = Some(val);
+                    }
+                }
+            }
+            if let Ok(Some(val)) = crate::db::get_system_setting(p, "CELADON_LLM_MODEL").await {
+                if !val.trim().is_empty() {
+                    model = Some(val);
+                }
+            }
+        }
+
+        let api_key = match api_key {
+            Some(k) => k,
+            None => std::env::var("DEEPSEEK_API_KEY")
+                .or_else(|_| std::env::var("OPENAI_API_KEY"))
+                .or_else(|_| std::env::var("LLM_API_KEY"))
+                .map_err(|_| {
+                    "需要设置 DEEPSEEK_API_KEY、OPENAI_API_KEY 或 LLM_API_KEY 环境变量".to_string()
+                })?,
+        };
+
+        let client = LlmClient::deepseek(&api_key)
+            .map_err(|e| format!("初始化 LLM 客户端失败: {e}"))?;
+
+        let model = model.unwrap_or_else(|| {
+            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string())
+        });
+
         Ok(Self {
             client: Arc::new(client),
             model,
