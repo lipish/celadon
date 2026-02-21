@@ -227,3 +227,9 @@ export async function apiUpdateAdminSetting(key: string, value: string): Promise
   const data = await postJson("/api/admin/settings", { key, value });
   return data as unknown as { ok: boolean };
 }
+
+export async function apiGetProviders(): Promise<string[]> {
+  const data = await getJson("/api/admin/providers");
+  return data as unknown as string[];
+}
+

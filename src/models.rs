@@ -75,13 +75,6 @@ pub struct DeploymentRun {
     pub rollback_hint: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
-pub struct WaitingListEntry {
-    pub id: i64,
-    pub email: String,
-    pub idea: String,
-    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StateStore {

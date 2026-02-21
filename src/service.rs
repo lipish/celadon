@@ -33,10 +33,14 @@ impl CeladonService {
         migrate_idea_events_to_conversation(&mut state);
         let llm_gateway = LlmGateway::load(None).await
             .map_err(|e| format!("{e}. 请设置 LLM API KEY"))?;
+        
+        let mut zene_client = ZeneClient::new();
+        let _ = zene_client.init(llm_gateway.to_agent_config()).await;
+        
         Ok(Self {
             storage_dir,
             state,
-            zene_client: ZeneClient::from_env(),
+            zene_client,
             llm_gateway,
             pool: None,
             user_id: None,
@@ -55,10 +59,15 @@ impl CeladonService {
         fs::create_dir_all(&user_dir)?;
         let llm_gateway = LlmGateway::load(Some(&pool)).await
             .map_err(|e| format!("{e}. 请在系统设置中配置 LLM API KEY"))?;
+            
+        let mut zene_client = ZeneClient::new();
+        // Warm the engine immediately
+        let _ = zene_client.init(llm_gateway.to_agent_config()).await;
+        
         Ok(Self {
             storage_dir: user_dir,
             state,
-            zene_client: ZeneClient::from_env(),
+            zene_client,
             llm_gateway,
             pool: Some(pool),
             user_id: Some(user_id),
@@ -309,9 +318,7 @@ impl CeladonService {
                     .run_agent_via_lib(
                         session_id,
                         &final_instruction,
-                        Some(self.llm_gateway.planner_model().to_string()),
-                        Some(self.llm_gateway.executor_model().to_string()),
-                        Some(self.llm_gateway.reflector_model().to_string()),
+                        None, // Use pre-warmed engine
                     )
                     .await?,
             )
@@ -462,16 +469,12 @@ impl CeladonService {
         let latest_task = self
             .state
             .task_runs
-            .iter()
-            .filter(|t| t.project_id == project.id)
-            .next_back()
+            .iter().rfind(|t| t.project_id == project.id)
             .map(|t| json!({ "task_id": t.task_id, "run_status": t.run_status }));
         let latest_deploy = self
             .state
             .deployment_runs
-            .iter()
-            .filter(|d| d.project_id == project.id)
-            .next_back()
+            .iter().rfind(|d| d.project_id == project.id)
             .map(|d| {
                 json!({
                     "deploy_id": d.deploy_id,

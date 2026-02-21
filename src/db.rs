@@ -15,8 +15,8 @@ pub type Pool = PgPool;
 /// 从 DATABASE_URL 创建连接池并执行迁移
 pub async fn init_pool(database_url: &str) -> Result<Pool, String> {
     let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(Duration::from_secs(5))
+        .max_connections(25)
+        .acquire_timeout(Duration::from_secs(10))
         .connect(database_url)
         .await
         .map_err(|e| format!("数据库连接失败: {e}"))?;

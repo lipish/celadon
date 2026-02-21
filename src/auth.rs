@@ -8,7 +8,7 @@ use std::io;
 use uuid::Uuid;
 
 fn err_msg(s: &str) -> Box<dyn std::error::Error + Send + Sync> {
-    Box::new(io::Error::new(io::ErrorKind::Other, s))
+    Box::new(io::Error::other(s))
 }
 
 /// 注册：写入 users，返回 user_id

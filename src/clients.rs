@@ -10,11 +10,22 @@ use zene::engine::session::store::FileSessionStore;
 use zene::RunRequest;
 use zene::ZeneEngine;
 
-pub struct ZeneClient;
+pub struct ZeneClient {
+    engine: Option<Arc<tokio::sync::Mutex<ZeneEngine>>>,
+}
 
 impl ZeneClient {
-    pub fn from_env() -> Self {
-        Self
+    pub fn new() -> Self {
+        Self { engine: None }
+    }
+
+    pub async fn init(&mut self, config: AgentConfig) -> AppResult<()> {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let storage_dir = PathBuf::from(&home).join(".zene/sessions");
+        let store = Arc::new(FileSessionStore::new(storage_dir)?);
+        let engine = ZeneEngine::new(config, store).await?;
+        self.engine = Some(Arc::new(tokio::sync::Mutex::new(engine)));
+        Ok(())
     }
 
     pub fn agent_run_payload(&self, session_id: &str, instruction: &str, workspace: &str) -> Value {
@@ -34,32 +45,37 @@ impl ZeneClient {
         &self,
         session_id: &str,
         instruction: &str,
-        planner: Option<String>,
-        executor: Option<String>,
-        reflector: Option<String>,
+        config_override: Option<AgentConfig>,
     ) -> AppResult<Value> {
         let session_id = session_id.to_string();
         let instruction = instruction.to_string();
+        let engine_arc = self.engine.clone();
+
         tokio::task::spawn_blocking(move || -> AppResult<Value> {
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()?;
             runtime.block_on(async move {
-                let mut config = AgentConfig::from_env()?;
-                if let Some(p) = planner { config.planner.model = p; }
-                if let Some(e) = executor { config.executor.model = e; }
-                if let Some(r) = reflector { config.reflector.model = r; }
-                
-                let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-                let storage_dir = PathBuf::from(&home).join(".zene/sessions");
-                let store = Arc::new(FileSessionStore::new(storage_dir)?);
-                let engine = ZeneEngine::new(config, store).await?;
                 let req = RunRequest {
                     prompt: instruction,
                     session_id: session_id.clone(),
                     env_vars: None,
                 };
-                let result = engine.run(req).await?;
+
+                // Use warmed engine if available and no override
+                let result = if let (Some(engine_lock), None) = (engine_arc, config_override) {
+                    let engine = engine_lock.lock().await;
+                    engine.run(req).await?
+                } else {
+                    // Fallback or override
+                    let config = AgentConfig::from_env()?;
+                    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+                    let storage_dir = PathBuf::from(&home).join(".zene/sessions");
+                    let store = Arc::new(FileSessionStore::new(storage_dir)?);
+                    let engine = ZeneEngine::new(config, store).await?;
+                    engine.run(req).await?
+                };
+
                 Ok(json!({
                     "jsonrpc": "2.0",
                     "result": {
@@ -91,98 +107,96 @@ pub(crate) const PRD_GEN_SYSTEM: &str = r#"根据对话内容，提炼并生成�
 使用 Markdown 格式，简洁清晰。"#;
 
 pub struct LlmGateway {
+    // Legacy support for basic LLM features in Celadon (like clarify)
     client: Arc<LlmClient>,
-    #[allow(dead_code)]
-    model: String, // Fallback model
-    planner_model: String,
-    executor_model: String,
-    reflector_model: String,
+    
+    // Zene-aligned role configs
+    pub planner_provider: String,
+    pub planner_key: String,
+    pub planner_model: String,
+    
+    pub executor_provider: String,
+    pub executor_key: String,
+    pub executor_model: String,
+    
+    pub reflector_provider: String,
+    pub reflector_key: String,
+    pub reflector_model: String,
+
+    pub use_semantic_memory: bool,
 }
 
 impl LlmGateway {
-    pub fn from_env() -> Result<Self, String> {
-        let api_key = std::env::var("DEEPSEEK_API_KEY")
-            .or_else(|_| std::env::var("OPENAI_API_KEY"))
-            .or_else(|_| std::env::var("LLM_API_KEY"))
-            .map_err(|_| {
-                "需要设置 DEEPSEEK_API_KEY、OPENAI_API_KEY 或 LLM_API_KEY 环境变量".to_string()
-            })?;
-        let client = LlmClient::deepseek(&api_key)
-            .map_err(|e| format!("初始化 LLM 客户端失败: {e}"))?;
-        let model =
-            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek/deepseek-chat".to_string());
-        
-        Ok(Self {
-            client: Arc::new(client),
-            model: model.clone(),
-            planner_model: std::env::var("LLM_PLANNER_MODEL").unwrap_or_else(|_| model.clone()),
-            executor_model: std::env::var("LLM_EXECUTOR_MODEL").unwrap_or_else(|_| model.clone()),
-            reflector_model: std::env::var("LLM_REFLECTOR_MODEL").unwrap_or_else(|_| model.clone()),
-        })
-    }
-
     pub async fn load(pool: Option<&crate::db::Pool>) -> Result<Self, String> {
-        let mut api_key = None;
-        let mut planner_model = None;
-        let mut executor_model = None;
-        let mut reflector_model = None;
-        let mut fallback_model = None;
+        let mut settings = std::collections::HashMap::new();
 
         if let Some(p) = pool {
-            // API Keys
-            if let Ok(Some(val)) = crate::db::get_system_setting(p, "DEEPSEEK_API_KEY").await {
-                if !val.trim().is_empty() { api_key = Some(val); }
-            }
-            if api_key.is_none() {
-                if let Ok(Some(val)) = crate::db::get_system_setting(p, "OPENAI_API_KEY").await {
-                    if !val.trim().is_empty() { api_key = Some(val); }
-                }
-            }
-
-            // Models
-            if let Ok(Some(val)) = crate::db::get_system_setting(p, "LLM_PLANNER_MODEL").await {
-                if !val.trim().is_empty() { planner_model = Some(val); }
-            }
-            if let Ok(Some(val)) = crate::db::get_system_setting(p, "LLM_EXECUTOR_MODEL").await {
-                if !val.trim().is_empty() { executor_model = Some(val); }
-            }
-            if let Ok(Some(val)) = crate::db::get_system_setting(p, "LLM_REFLECTOR_MODEL").await {
-                if !val.trim().is_empty() { reflector_model = Some(val); }
-            }
-            if let Ok(Some(val)) = crate::db::get_system_setting(p, "CELADON_LLM_MODEL").await {
-                if !val.trim().is_empty() { fallback_model = Some(val); }
+            let keys = vec![
+                "ZENE_PLANNER_PROVIDER", "ZENE_PLANNER_API_KEY", "ZENE_PLANNER_MODEL",
+                "ZENE_EXECUTOR_PROVIDER", "ZENE_EXECUTOR_API_KEY", "ZENE_EXECUTOR_MODEL",
+                "ZENE_REFLECTOR_PROVIDER", "ZENE_REFLECTOR_API_KEY", "ZENE_REFLECTOR_MODEL",
+                "ZENE_USE_SEMANTIC_MEMORY", "CELADON_LLM_MODEL",
+                "DEEPSEEK_API_KEY", "OPENAI_API_KEY"
+            ];
+            for k in keys {
+                if let Ok(Some(val)) = crate::db::get_system_setting(p, k).await
+                    && !val.trim().is_empty() {
+                        settings.insert(k.to_string(), val);
+                    }
             }
         }
 
-        let api_key = match api_key {
-            Some(k) => k,
-            None => std::env::var("DEEPSEEK_API_KEY")
-                .or_else(|_| std::env::var("OPENAI_API_KEY"))
-                .or_else(|_| std::env::var("LLM_API_KEY"))
-                .map_err(|_| {
-                    "需要设置 DEEPSEEK_API_KEY、OPENAI_API_KEY 或 LLM_API_KEY 环境变量".to_string()
-                })?,
+        let get_setting = |key: &str, default: &str| -> String {
+            settings.get(key).cloned().or_else(|| std::env::var(key).ok()).unwrap_or_else(|| default.to_string())
         };
 
-        let client = LlmClient::deepseek(&api_key)
-            .map_err(|e| format!("初始化 LLM 客户端失败: {e}"))?;
+        let planner_provider = get_setting("ZENE_PLANNER_PROVIDER", "deepseek");
+        let planner_key = get_setting("ZENE_PLANNER_API_KEY", "");
+        let planner_model = get_setting("ZENE_PLANNER_MODEL", "deepseek-chat");
 
-        let fallback = fallback_model.unwrap_or_else(|| {
-            std::env::var("CELADON_LLM_MODEL").unwrap_or_else(|_| "deepseek/deepseek-chat".to_string())
-        });
+        let executor_provider = get_setting("ZENE_EXECUTOR_PROVIDER", "openai");
+        let executor_key = get_setting("ZENE_EXECUTOR_API_KEY", "");
+        let executor_model = get_setting("ZENE_EXECUTOR_MODEL", "gpt-4o");
+
+        let reflector_provider = get_setting("ZENE_REFLECTOR_PROVIDER", "deepseek");
+        let reflector_key = get_setting("ZENE_REFLECTOR_API_KEY", "");
+        let reflector_model = get_setting("ZENE_REFLECTOR_MODEL", "deepseek-chat");
+
+        let use_semantic_memory = get_setting("ZENE_USE_SEMANTIC_MEMORY", "false") == "true";
+
+        // Basic client for non-zene features
+        let basic_key = if !planner_key.is_empty() { planner_key.clone() } else { get_setting("DEEPSEEK_API_KEY", "dummy") };
+        let client = LlmClient::deepseek(&basic_key).unwrap_or_else(|_| LlmClient::deepseek("dummy").unwrap());
 
         Ok(Self {
             client: Arc::new(client),
-            model: fallback.clone(),
-            planner_model: planner_model.unwrap_or_else(|| std::env::var("LLM_PLANNER_MODEL").unwrap_or_else(|_| fallback.clone())),
-            executor_model: executor_model.unwrap_or_else(|| std::env::var("LLM_EXECUTOR_MODEL").unwrap_or_else(|_| fallback.clone())),
-            reflector_model: reflector_model.unwrap_or_else(|| std::env::var("LLM_REFLECTOR_MODEL").unwrap_or_else(|_| fallback.clone())),
+            planner_provider, planner_key, planner_model,
+            executor_provider, executor_key, executor_model,
+            reflector_provider, reflector_key, reflector_model,
+            use_semantic_memory,
         })
     }
 
-    pub fn planner_model(&self) -> &str { &self.planner_model }
-    pub fn executor_model(&self) -> &str { &self.executor_model }
-    pub fn reflector_model(&self) -> &str { &self.reflector_model }
+    pub fn to_agent_config(&self) -> AgentConfig {
+        let mut config = AgentConfig::default();
+        
+        config.planner.provider = self.planner_provider.clone();
+        config.planner.api_key = self.planner_key.clone();
+        config.planner.model = self.planner_model.clone();
+
+        config.executor.provider = self.executor_provider.clone();
+        config.executor.api_key = self.executor_key.clone();
+        config.executor.model = self.executor_model.clone();
+
+        config.reflector.provider = self.reflector_provider.clone();
+        config.reflector.api_key = self.reflector_key.clone();
+        config.reflector.model = self.reflector_model.clone();
+
+        config.use_semantic_memory = self.use_semantic_memory;
+        config.simple_mode = true; // For performance in Celadon
+
+        config
+    }
 
     pub async fn clarify_round(
         &self,

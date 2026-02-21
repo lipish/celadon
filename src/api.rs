@@ -112,14 +112,15 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
         .route("/api/deploy", post(run_deploy))
         .route("/api/projects", get(list_projects))
         .route("/api/status/{session_id}", get(status));
-    if state.pool.is_some() {
+        if state.pool.is_some() {
         app = app
             .route("/api/register", post(register))
             .route("/api/login", post(login))
             .route("/api/me", get(me))
             .route("/api/logout", post(logout))
             .route("/api/admin/settings", get(get_all_settings))
-            .route("/api/admin/settings", post(update_system_setting));
+            .route("/api/admin/settings", post(update_system_setting))
+            .route("/api/admin/providers", get(get_providers));
     }
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -390,4 +391,14 @@ async fn update_system_setting(
     let mut service = check_admin(&state, &headers).await?;
     service.update_setting(&req.key, &req.value).await.map_err(ApiError::from)?;
     Ok(Json(json!({ "ok": true })))
+}
+
+async fn get_providers(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+) -> ApiResult {
+    // 保证只有 admin 能调用
+    let _ = check_admin(&state, &headers).await?;
+    let providers = llm_connector::LlmClient::supported_providers();
+    Ok(Json(json!(providers)))
 }
