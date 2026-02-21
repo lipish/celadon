@@ -7,3 +7,4 @@
 .env
 .DS_Store
 .fastembed_cache
+node_modules/
