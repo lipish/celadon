@@ -1,11 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGetAdminSettings, apiUpdateAdminSetting, apiGetProviders, type SystemSetting } from "@/lib/api";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
     Settings,
-    Save,
     ChevronLeft,
     Cpu,
     CheckCircle2,
@@ -23,19 +32,12 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { PROVIDERS } from "@/lib/providers";
 
-const PROVIDER_MODELS: Record<string, string[]> = {
-    deepseek: ["deepseek-chat", "deepseek-reasoner"],
-    openai: ["o1", "o3-mini", "gpt-4o", "gpt-4o-mini"],
-    anthropic: ["claude-3-7-sonnet-20250219", "claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
-    minimax: ["abab6.5s-chat", "abab6.5t-chat", "abab6.5-chat"],
-    zhipu: ["glm-4-plus", "glm-4-0520", "glm-4-flash"],
-    aliyun: ["qwen-max", "qwen-plus", "qwen-turbo", "qwen-long"],
-    tencent: ["hunyuan-large", "hunyuan-pro", "hunyuan-standard", "hunyuan-lite"],
-    ollama: ["deepseek-r1", "llama3.3", "qwen2.5", "mistral"],
-    volcengine: ["doubao-1.5-pro-32k", "doubao-1.5-lite-32k"],
-    google: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro"]
-};
+// 从 PROVIDERS 生成建议模型列表（仅使用模型 id）
+const PROVIDER_MODELS: Record<string, string[]> = Object.fromEntries(
+    Object.entries(PROVIDERS).map(([k, v]) => [k, v.models.map(m => m.id)])
+);
 
 export default function AdminSettingsPage() {
     const { t } = useLocale();
@@ -47,6 +49,21 @@ export default function AdminSettingsPage() {
     const [saving, setSaving] = useState<string | null>(null);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState<string | null>(null);
+    const [apiKeyDialogRole, setApiKeyDialogRole] = useState<string | null>(null);
+    const [apiKeyDraft, setApiKeyDraft] = useState<string>("");
+    const apiKeyInputRef = useRef<HTMLInputElement | null>(null);
+    const saveTimersRef = useRef<Record<string, number>>({});
+
+    const upsertSetting = (prev: SystemSetting[], key: string, value: string): SystemSetting[] => {
+        const idx = prev.findIndex(s => s.key === key);
+        if (idx >= 0) {
+            const cur = prev[idx];
+            const next = prev.slice();
+            next[idx] = { ...cur, value };
+            return next;
+        }
+        return prev.concat([{ key, value, description: null }]);
+    };
 
     useEffect(() => {
         if (!authLoading && !isAdmin) {
@@ -62,14 +79,56 @@ export default function AdminSettingsPage() {
                 apiGetAdminSettings(),
                 apiGetProviders()
             ]);
-            setSettings(settingsData);
-            setProviders(providersData);
+            // 后端可能返回空或不完整列表时，回退到内置 PROVIDERS 的 key
+            const fallbackProviders = Object.keys(PROVIDERS);
+            setProviders(providersData && providersData.length > 0 ? providersData : fallbackProviders);
+
+            // 应用默认值（仅当为空时）
+            const withDefaults = applyRoleDefaults(settingsData);
+            setSettings(withDefaults);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load settings or providers");
         } finally {
             setLoading(false);
         }
     };
+
+    function applyRoleDefaults(list: SystemSetting[]): SystemSetting[] {
+        const byKey = new Map(list.map(s => [s.key, s] as const));
+        const setIfEmpty = (key: string, value: string) => {
+            const cur = byKey.get(key);
+            if (!cur || !cur.value) {
+                const next = { key, value, description: cur?.description ?? null } as SystemSetting;
+                byKey.set(key, next);
+            }
+        };
+
+        const ensureRole = (role: "PLANNER" | "EXECUTOR" | "REFLECTOR", defProv: string, defModel: string) => {
+            const pKey = `ZENE_${role}_PROVIDER`;
+            const mKey = `ZENE_${role}_MODEL`;
+            const curModel = byKey.get(mKey)?.value || "";
+            // 先保证有模型
+            setIfEmpty(mKey, defModel);
+            // provider 优先由已有模型反推；否则用默认
+            const inferred = inferProviderByModel(curModel || defModel);
+            setIfEmpty(pKey, inferred || defProv);
+        };
+
+        ensureRole("PLANNER", "deepseek", "deepseek-chat");
+        ensureRole("EXECUTOR", "zhipu", "glm-5");
+        ensureRole("REFLECTOR", "moonshot", "kimi-k2.5");
+
+        return Array.from(byKey.values());
+    }
+
+    // 通过模型名反推 provider（用于处理历史数据只有 model 没有 provider 的情况）
+    function inferProviderByModel(modelId: string): string | "" {
+        if (!modelId) return "";
+        for (const [prov, models] of Object.entries(PROVIDER_MODELS)) {
+            if (models.includes(modelId)) return prov;
+        }
+        return "";
+    }
 
     const handleUpdate = async (key: string, value: string) => {
         setSaving(key);
@@ -79,7 +138,7 @@ export default function AdminSettingsPage() {
             await apiUpdateAdminSetting(key, value);
             setSuccess(t("updateSuccess"));
             setTimeout(() => setSuccess(null), 3000);
-            setSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
+            setSettings(prev => upsertSetting(prev, key, value));
         } catch (e) {
             setError(e instanceof Error ? e.message : t("updateError"));
         } finally {
@@ -87,24 +146,39 @@ export default function AdminSettingsPage() {
         }
     };
 
-    const handleSaveRole = async (role: string) => {
-        const keys = [
-            `ZENE_${role}_PROVIDER`,
-            `ZENE_${role}_MODEL`,
-            `ZENE_${role}_API_KEY`,
-        ];
-        setSaving(`ROLE_${role}`);
-        setError("");
-        setSuccess(null);
+    const scheduleSave = (key: string, value: string, delayMs = 500) => {
+        const timers = saveTimersRef.current;
+        const prev = timers[key];
+        if (prev) window.clearTimeout(prev);
+        timers[key] = window.setTimeout(() => {
+            void handleUpdate(key, value);
+            delete timers[key];
+        }, delayMs);
+    };
+
+    const saveNow = (key: string, value: string) => {
+        const timers = saveTimersRef.current;
+        const prev = timers[key];
+        if (prev) {
+            window.clearTimeout(prev);
+            delete timers[key];
+        }
+        void handleUpdate(key, value);
+    };
+
+    // 一键恢复默认并保存（覆盖后端设置）
+    const applyAndSaveDefaults = async () => {
         try {
-            for (const key of keys) {
-                const value = settings.find(s => s.key === key)?.value || "";
-                await apiUpdateAdminSetting(key, value);
-            }
-            setSuccess(t("updateSuccess"));
-            setTimeout(() => setSuccess(null), 3000);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : t("updateError"));
+            setSaving("APPLY_DEFAULTS");
+            // 本地状态也先行更新以即时反映
+            setSettings(prev => applyRoleDefaults(prev));
+            // 依次保存三组键
+            await handleUpdate("ZENE_PLANNER_PROVIDER", "deepseek");
+            await handleUpdate("ZENE_PLANNER_MODEL", "deepseek-chat");
+            await handleUpdate("ZENE_EXECUTOR_PROVIDER", "zhipu");
+            await handleUpdate("ZENE_EXECUTOR_MODEL", "glm-5");
+            await handleUpdate("ZENE_REFLECTOR_PROVIDER", "moonshot");
+            await handleUpdate("ZENE_REFLECTOR_MODEL", "kimi-k2.5");
         } finally {
             setSaving(null);
         }
@@ -132,17 +206,23 @@ export default function AdminSettingsPage() {
 
     const handleChange = (key: string, value: string) => {
         setSettings(prev => {
-            let next = prev.map(s => s.key === key ? { ...s, value } : s);
+            let next = upsertSetting(prev, key, value);
 
-            // Auto update model if provider changed
             if (key.endsWith("_PROVIDER")) {
                 const role = key.replace("ZENE_", "").replace("_PROVIDER", "");
                 const modelKey = `ZENE_${role}_MODEL`;
                 const defaultModel = PROVIDER_MODELS[value]?.[0];
                 if (defaultModel) {
-                    next = next.map(s => s.key === modelKey ? { ...s, value: defaultModel } : s);
+                    next = upsertSetting(next, modelKey, defaultModel);
+                    scheduleSave(modelKey, defaultModel, 0);
                 }
+                saveNow(key, value);
+            } else if (key.endsWith("_API_KEY")) {
+                saveNow(key, value);
+            } else {
+                scheduleSave(key, value, 600);
             }
+
             return next;
         });
     };
@@ -158,14 +238,56 @@ export default function AdminSettingsPage() {
     const getVal = (key: string) => settings.find(s => s.key === key)?.value || "";
     const getDesc = (key: string) => settings.find(s => s.key === key)?.description || "";
 
-    const providerOptions = providers.length > 0 ? providers : Object.keys(PROVIDER_MODELS);
+    // 统一可选 Provider：后端返回列表 ∪ 本地内置，避免默认值不在下拉项中导致显示为空
+    const providerOptions = Array.from(new Set([
+        ...providers,
+        ...Object.keys(PROVIDERS),
+    ]));
 
-    const RoleSection = ({ role, title, icon: Icon }: { role: string; title: string; icon: any }) => {
+    const maskKey = (val: string): string => {
+        const s = val || "";
+        const n = s.length;
+        if (n === 0) return "";
+        if (n <= 8) {
+            const h2 = s.slice(0, 2);
+            const t2 = s.slice(-2);
+            return n > 4 ? `${h2}…${t2}` : s;
+        }
+        const head = s.slice(0, 4);
+        const tail = s.slice(-4);
+        return `${head}…${tail}`;
+    };
+
+    const openApiKeyDialog = (role: string, current: string) => {
+        setApiKeyDialogRole(role);
+        setApiKeyDraft(current);
+        setTimeout(() => {
+            const el = apiKeyInputRef.current;
+            if (el) {
+                el.value = current;
+                el.focus();
+                el.select();
+            }
+        }, 0);
+    };
+
+    const applyApiKeyDraft = (role: string) => {
+        const v = apiKeyInputRef.current?.value ?? apiKeyDraft;
+        const key = `ZENE_${role}_API_KEY`;
+        setApiKeyDialogRole(null);
+        setTimeout(() => {
+            handleChange(key, v);
+        }, 0);
+    };
+
+    const renderRoleSection = (role: string, title: string, Icon: any) => {
         const pKey = `ZENE_${role}_PROVIDER`;
         const kKey = `ZENE_${role}_API_KEY`;
         const mKey = `ZENE_${role}_MODEL`;
         const currentProvider = getVal(pKey);
-        const suggestedModels = PROVIDER_MODELS[currentProvider] || [];
+        const currentModel = getVal(mKey);
+        const effectiveProvider = currentProvider || inferProviderByModel(currentModel);
+        const suggestedModels = PROVIDER_MODELS[effectiveProvider] || [];
         const isSavingRole = saving === `ROLE_${role}`;
 
         return (
@@ -188,7 +310,7 @@ export default function AdminSettingsPage() {
                         <div className="space-y-2">
                             <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground ml-1">{t("providerLabel")}</label>
                             <Select
-                                value={currentProvider}
+                                value={effectiveProvider || undefined}
                                 onValueChange={(val) => handleChange(pKey, val)}
                                 disabled={isSavingRole}
                             >
@@ -237,20 +359,49 @@ export default function AdminSettingsPage() {
                     {/* API Key */}
                     <div className="space-y-2">
                         <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-muted-foreground ml-1">{t("apiKeyLabel")}</label>
-                        <div className="relative">
-                            <input
-                                type="password"
-                                value={getVal(kKey)}
-                                onChange={(e) => handleChange(kKey, e.target.value)}
-                                disabled={isSavingRole}
-                                placeholder="sk-..."
-                                className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-celadon/50 focus:ring-1 focus:ring-celadon/50 outline-none font-mono text-sm transition-all pr-16"
-                            />
-                            {getVal(kKey) && (
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-celadon/60 px-2 py-0.5 rounded bg-celadon/5 border border-celadon/20">
-                                    MASKED
-                                </div>
-                            )}
+                        <div className="flex items-center gap-3">
+                            <AlertDialog
+                                open={apiKeyDialogRole === role}
+                                onOpenChange={(open) => {
+                                    if (!open) setApiKeyDialogRole(null);
+                                }}
+                            >
+                                <AlertDialogTrigger asChild>
+                                    <button
+                                        type="button"
+                                        onClick={() => openApiKeyDialog(role, getVal(kKey))}
+                                        disabled={isSavingRole}
+                                        className="w-full h-12 px-4 rounded-xl bg-background border border-border hover:border-celadon/50 focus-visible:border-celadon/50 focus-visible:ring-1 focus-visible:ring-celadon/50 outline-none font-mono text-sm transition-all disabled:opacity-50 text-left"
+                                    >
+                                        {getVal(kKey) ? maskKey(getVal(kKey)) : "sk-..."}
+                                    </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>{t("apiKeyLabel")}</AlertDialogTitle>
+                                    </AlertDialogHeader>
+                                    <input
+                                        type="text"
+                                        defaultValue={apiKeyDraft}
+                                        ref={apiKeyInputRef}
+                                        placeholder="sk-..."
+                                        name={`celadon-apikey-${role.toLowerCase()}`}
+                                        autoComplete="off"
+                                        autoCapitalize="off"
+                                        autoCorrect="off"
+                                        spellCheck={false}
+                                        data-lpignore="true"
+                                        data-1p-ignore="true"
+                                        data-bwignore="true"
+                                        data-form-type="other"
+                                        className="w-full h-12 px-4 rounded-xl bg-background border border-border focus:border-celadon/50 focus:ring-1 focus:ring-celadon/50 outline-none font-mono text-sm transition-all"
+                                    />
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => applyApiKeyDraft(role)}>{t("confirm")}</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                         <p className="text-[10px] text-muted-foreground/60 leading-relaxed font-mono">
                             {getDesc(kKey) || t("ensureApiKeyBalance")}
@@ -258,17 +409,7 @@ export default function AdminSettingsPage() {
                     </div>
                 </div>
 
-                {/* Single save button for the whole role */}
-                <div className="flex justify-end pt-2 border-t border-border/40">
-                    <button
-                        onClick={() => handleSaveRole(role)}
-                        disabled={isSavingRole}
-                        className="h-10 px-6 rounded-xl bg-celadon text-primary-foreground font-mono text-sm font-bold hover:bg-vibrant-celadon transition-all shadow-glow flex items-center gap-2 disabled:opacity-50"
-                    >
-                        {isSavingRole ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                        {isSavingRole ? t("saving") : t("update")}
-                    </button>
-                </div>
+                <div className="pt-2 border-t border-border/40" />
             </div>
         );
     };
@@ -290,7 +431,15 @@ export default function AdminSettingsPage() {
                         <span className="text-xs font-mono font-bold tracking-tight uppercase">{t("adminConsole")}</span>
                     </div>
 
-                    <div className="w-20" />
+                    <div className="flex justify-end">
+                        <button
+                            onClick={applyAndSaveDefaults}
+                            disabled={saving === "APPLY_DEFAULTS"}
+                            className="h-8 px-3 rounded-lg border border-border text-[10px] font-mono hover:border-celadon/50 hover:text-celadon disabled:opacity-50 whitespace-nowrap"
+                        >
+                            {t("applyDefaults")}
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -359,9 +508,9 @@ export default function AdminSettingsPage() {
 
                     {/* Roles Grid */}
                     <div className="space-y-8">
-                        <RoleSection role="PLANNER" title={t("plannerTitle")} icon={Cpu} />
-                        <RoleSection role="EXECUTOR" title={t("executorTitle")} icon={Terminal} />
-                        <RoleSection role="REFLECTOR" title={t("reflectorTitle")} icon={Eye} />
+                        {renderRoleSection("PLANNER", t("plannerTitle"), Cpu)}
+                        {renderRoleSection("EXECUTOR", t("executorTitle"), Terminal)}
+                        {renderRoleSection("REFLECTOR", t("reflectorTitle"), Eye)}
                     </div>
 
                     {/* Feedback Area */}

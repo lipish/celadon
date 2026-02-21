@@ -1,6 +1,6 @@
 [package]
 name = "celadon"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Celadon is an interactive AI agent that guides users from initial ideas to project development, including refining names, generating docs, simulating builds, and deploying, with support for ongoing iterations and updates."
 license = "MIT"
