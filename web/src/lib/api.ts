@@ -239,3 +239,8 @@ export function apiDevStream(sessionId: string): EventSource {
   return new EventSource(url);
 }
 
+export async function apiDevFiles(): Promise<any[]> {
+  const data = await getJson("/api/dev/files");
+  return data as unknown as any[];
+}
+

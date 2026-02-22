@@ -8,7 +8,7 @@ import {
   Cpu, Activity, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiDevRun, apiDevStream } from "@/lib/api";
+import { apiDevRun, apiDevStream, apiDevFiles } from "@/lib/api";
 import { useLocale } from "@/contexts/LocaleContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -95,57 +95,7 @@ function PipelineBar({ activeIndex }: { activeIndex: number }) {
 
 // ─── File Tree ────────────────────────────────────────────────────────────────
 
-const FILE_TREE: FileNode[] = [
-  {
-    name: "src", type: "folder", children: [
-      {
-        name: "app", type: "folder", children: [
-          { name: "layout.tsx", type: "file", status: "new", language: "tsx" },
-          { name: "page.tsx", type: "file", status: "new", language: "tsx" },
-        ]
-      },
-      {
-        name: "components", type: "folder", children: [
-          {
-            name: "ui", type: "folder", children: [
-              { name: "button.tsx", type: "file", status: "unchanged" },
-              { name: "card.tsx", type: "file", status: "unchanged" },
-            ]
-          },
-          { name: "BillingTable.tsx", type: "file", status: "new", language: "tsx" },
-          { name: "SubscriptionCard.tsx", type: "file", status: "new", language: "tsx" },
-          { name: "RevenueChart.tsx", type: "file", status: "modified", language: "tsx" },
-        ]
-      },
-      {
-        name: "lib", type: "folder", children: [
-          { name: "stripe.ts", type: "file", status: "new", language: "ts" },
-          { name: "prisma.ts", type: "file", status: "new", language: "ts" },
-          { name: "utils.ts", type: "file", status: "unchanged", },
-        ]
-      },
-      {
-        name: "middleware", type: "folder", children: [
-          { name: "auth.ts", type: "file", status: "new", language: "ts" },
-          { name: "rateLimit.ts", type: "file", status: "new", language: "ts" },
-        ]
-      },
-    ],
-  },
-  {
-    name: "prisma", type: "folder", children: [
-      { name: "schema.prisma", type: "file", status: "new", language: "prisma" },
-      {
-        name: "migrations", type: "folder", children: [
-          { name: "20240118_init.sql", type: "file", status: "new" },
-        ]
-      },
-    ]
-  },
-  { name: ".env.example", type: "file", status: "new" },
-  { name: "package.json", type: "file", status: "modified" },
-  { name: "tsconfig.json", type: "file", status: "unchanged" },
-];
+// ─── File Tree Initialized by Backend ──────────────────────────────────────
 
 const statusColors: Record<string, string> = {
   new: "text-celadon",
@@ -402,6 +352,11 @@ export default function DevPage() {
   const [devLoading, setDevLoading] = useState(false);
   const [devError, setDevError] = useState("");
   const [isDone, setIsDone] = useState(false);
+  const [fileTree, setFileTree] = useState<FileNode[]>([]);
+
+  useEffect(() => {
+    apiDevFiles().then(res => setFileTree(res as FileNode[])).catch(console.error);
+  }, []);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -444,66 +399,84 @@ export default function DevPage() {
     source.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data);
-        let newLog: LogLine | null = null;
 
-        switch (event.type) {
-          case 'ThoughtDelta':
-            newLog = {
-              id: Math.random().toString(),
-              type: "agent",
-              text: event.data,
-              time: makeTime(0),
-              agent: "Executor"
-            };
-            break;
-          case 'ToolCall':
-            const cmd = `${event.data.name} ${JSON.stringify(event.data.arguments)}`;
-            newLog = {
-              id: Math.random().toString(),
-              type: "cmd",
-              text: cmd,
-              time: makeTime(0)
-            };
-            break;
-          case 'ToolResult':
-            newLog = {
-              id: Math.random().toString(),
-              type: "info",
-              text: (event.data.result || "").substring(0, 150) + "...",
-              time: makeTime(0)
-            };
-            setLoopCount(c => c + 1);
-            break;
-          case 'FileStateChanged':
-            setTotalFiles(f => f + 1);
-            setTotalLines(l => l + Math.floor(20 + Math.random() * 50));
-            newLog = {
-              id: Math.random().toString(),
-              type: "info",
-              text: `[File ${event.data?.change_type}] ${event.data?.path}`,
-              time: makeTime(0)
-            };
-            break;
-          case 'Finished':
-            setIsDone(true);
-            newLog = {
-              id: Math.random().toString(),
-              type: "info",
-              text: "✅ Execution Completed!",
-              time: makeTime(0)
-            };
-            source.close();
-            break;
-          case 'Error':
-            setDevError(event.data?.message || "Execution Error");
-            setIsDone(true);
-            source.close();
-            break;
-        }
+        setLogs(prev => {
+          let newLogs = [...prev];
+          const lastLog = newLogs.length > 0 ? newLogs[newLogs.length - 1] : null;
 
-        if (newLog) {
-          setLogs(prev => [...prev, newLog!]);
-        }
+          switch (event.type) {
+            case 'ThoughtDelta':
+              if (lastLog && lastLog.type === "agent") {
+                newLogs[newLogs.length - 1] = { ...lastLog, text: lastLog.text + event.data };
+              } else {
+                newLogs.push({
+                  id: Math.random().toString(),
+                  type: "agent",
+                  text: event.data,
+                  time: makeTime(0),
+                  agent: "Executor"
+                });
+              }
+              break;
+            case 'ToolCall':
+              const toolName = event.data.name;
+              // Provide a fallback if arguments is string or object
+              let argsStr = typeof event.data.arguments === 'string'
+                ? event.data.arguments
+                : JSON.stringify(event.data.arguments || {});
+              if (argsStr === "{}" || argsStr === '""' || argsStr === "") argsStr = "";
+              const cmd = argsStr ? `${toolName} ${argsStr}` : toolName;
+
+              if (lastLog && lastLog.type === "cmd" && lastLog.text.startsWith(toolName)) {
+                // The backend might be streaming the tool call in parts, update in place
+                newLogs[newLogs.length - 1] = { ...lastLog, text: cmd };
+              } else {
+                newLogs.push({
+                  id: Math.random().toString(),
+                  type: "cmd",
+                  text: cmd,
+                  time: makeTime(0)
+                });
+              }
+              break;
+            case 'ToolResult':
+              newLogs.push({
+                id: Math.random().toString(),
+                type: "info",
+                text: (event.data.result || "").substring(0, 150) + "...",
+                time: makeTime(0)
+              });
+              setLoopCount(c => c + 1);
+              break;
+            case 'FileStateChanged':
+              setTotalFiles(f => f + 1);
+              setTotalLines(l => l + Math.floor(20 + Math.random() * 50));
+              newLogs.push({
+                id: Math.random().toString(),
+                type: "info",
+                text: `[File ${event.data?.change_type}] ${event.data?.path}`,
+                time: makeTime(0)
+              });
+              break;
+            case 'Finished':
+              setIsDone(true);
+              newLogs.push({
+                id: Math.random().toString(),
+                type: "info",
+                text: "✅ Execution Completed!",
+                time: makeTime(0)
+              });
+              source.close();
+              break;
+            case 'Error':
+              setDevError(event.data?.message || "Execution Error");
+              setIsDone(true);
+              source.close();
+              break;
+          }
+          return newLogs;
+        });
+
       } catch (err) { }
     };
 
@@ -650,7 +623,7 @@ export default function DevPage() {
             {/* File tree */}
             <div className="flex-1 overflow-y-auto py-2">
               {devStarted ? (
-                FILE_TREE.map((node, i) => (
+                fileTree.map((node, i) => (
                   <FileTreeNode key={i} node={node} />
                 ))
               ) : (
@@ -727,7 +700,7 @@ export default function DevPage() {
                   {t("devFilesCount")} · {totalFiles}
                 </div>
                 {devStarted ? (
-                  FILE_TREE.map((node, i) => (
+                  fileTree.map((node, i) => (
                     <FileTreeNode key={i} node={node} depth={0} />
                   ))
                 ) : (

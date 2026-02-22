@@ -9,7 +9,7 @@ use axum::response::{IntoResponse, Response, sse::{Event, Sse}};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_core::stream::Stream;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::convert::Infallible;
 use std::collections::HashMap;
@@ -118,7 +118,8 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
         .route("/api/idea", post(idea))
         .route("/api/prd/generate", post(generate_prd))
         .route("/api/dev/run", post(run_dev))
-        .route("/api/dev/stream/:session_id", get(dev_stream))
+        .route("/api/dev/files", get(dev_files))
+        .route("/api/dev/stream/{session_id}", get(dev_stream))
         .route("/api/deploy", post(run_deploy))
         .route("/api/projects", get(list_projects))
         .route("/api/status/{session_id}", get(status));
@@ -265,6 +266,62 @@ async fn generate_prd(
         .await
         .map_err(ApiError::from)?;
     Ok(Json(out))
+}
+
+#[derive(Serialize)]
+pub struct FileNode {
+    name: String,
+    #[serde(rename = "type")]
+    node_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    children: Option<Vec<FileNode>>,
+}
+
+fn build_file_tree(dir: &std::path::Path) -> Vec<FileNode> {
+    let mut nodes = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        let mut entries: Vec<_> = entries.filter_map(|e| e.ok()).collect();
+        // Sort: directories first, then alphabetical
+        entries.sort_by(|a, b| {
+            let a_is_dir = a.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+            let b_is_dir = b.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+            if a_is_dir != b_is_dir {
+                b_is_dir.cmp(&a_is_dir)
+            } else {
+                a.file_name().cmp(&b.file_name())
+            }
+        });
+
+        for entry in entries {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            
+            // Skip hidden directories like .git or node_modules
+            if name.starts_with('.') || name == "node_modules" || name == "target" {
+                continue;
+            }
+
+            if path.is_dir() {
+                nodes.push(FileNode {
+                    name,
+                    node_type: "folder".to_string(),
+                    children: Some(build_file_tree(&path)),
+                });
+            } else {
+                nodes.push(FileNode {
+                    name,
+                    node_type: "file".to_string(),
+                    children: None,
+                });
+            }
+        }
+    }
+    nodes
+}
+
+async fn dev_files(State(_state): State<ApiState>) -> Json<Vec<FileNode>> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    Json(build_file_tree(&cwd))
 }
 
 async fn run_dev(
