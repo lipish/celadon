@@ -293,7 +293,7 @@ export default function AdminSettingsPage() {
         const currentProvider = getVal(pKey);
         const currentModel = getVal(mKey);
         const effectiveProvider = currentProvider || inferProviderByModel(currentModel);
-        const suggestedModels = PROVIDER_MODELS[effectiveProvider] || [];
+        const suggestedModels = providerModelsMap[effectiveProvider] || [];
         const isSavingRole = saving === `ROLE_${role}`;
 
         return (
