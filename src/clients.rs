@@ -13,12 +13,12 @@ use zene::AgentEvent;
 use tokio::sync::mpsc;
 
 pub struct ZeneClient {
-    engine: Option<Arc<tokio::sync::Mutex<ZeneEngine>>>,
+    engine: Arc<tokio::sync::Mutex<Option<ZeneEngine>>>,
 }
 
 impl ZeneClient {
     pub fn new() -> Self {
-        Self { engine: None }
+        Self { engine: Arc::new(tokio::sync::Mutex::new(None)) }
     }
 
     pub async fn init(&mut self, config: AgentConfig) -> AppResult<()> {
@@ -26,7 +26,7 @@ impl ZeneClient {
         let storage_dir = PathBuf::from(&home).join(".zene/sessions");
         let store = Arc::new(FileSessionStore::new(storage_dir)?);
         let engine = ZeneEngine::new(config, store).await?;
-        self.engine = Some(Arc::new(tokio::sync::Mutex::new(engine)));
+        *self.engine.lock().await = Some(engine);
         Ok(())
     }
 
@@ -55,19 +55,20 @@ impl ZeneClient {
             env_vars: None,
         };
 
-        let engine_arc = self.engine.clone();
+        let mut engine_guard = self.engine.lock().await;
 
-        if let (Some(engine_lock), None) = (engine_arc, config_override) {
-            let engine = engine_lock.lock().await;
+        if let (Some(engine), None) = (&*engine_guard, config_override.as_ref()) {
             Ok(engine.run_stream(req).await?)
         } else {
-            // Fallback or override
-            let config = AgentConfig::from_env()?;
+            // Fallback or override, we update the cached engine
+            let config = config_override.unwrap_or_else(|| AgentConfig::from_env().unwrap());
             let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
             let storage_dir = PathBuf::from(&home).join(".zene/sessions");
             let store = Arc::new(FileSessionStore::new(storage_dir)?);
-            let engine = ZeneEngine::new(config, store).await?;
-            Ok(engine.run_stream(req).await?)
+            let new_engine = ZeneEngine::new(config, store).await?;
+            let stream = new_engine.run_stream(req).await?;
+            *engine_guard = Some(new_engine);
+            Ok(stream)
         }
     }
 }
