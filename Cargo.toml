@@ -27,7 +27,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 uuid = { version = "1.8", features = ["v4"] }
 llm-connector = "0.6"
 # 默认不含 fastembed；需本地 embedding 时编译加 --features knowledge
-zene = "0.5.3"
+zene = "0.5.4"
 # PostgreSQL + 用户系统
 sqlx = { version = "0.8", features = ["runtime-tokio-native-tls", "postgres", "chrono", "uuid", "json"] }
 bcrypt = "0.16"

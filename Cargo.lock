@@ -3648,9 +3648,9 @@ dependencies = [
 
 [[package]]
 name = "zene"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acdcdd5fb4a1d504a37606bdcb3debe7480f87fb715b71693034280dfbcf20cf"
+checksum = "1b42467972f63d0187ff61d2314d95a2f6beb0d418434189faf363535d2e3b59"
 dependencies = [
  "anyhow",
  "async-trait",
