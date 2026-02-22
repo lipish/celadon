@@ -5,6 +5,15 @@ edition = "2024"
 description = "Celadon is an interactive AI agent that guides users from initial ideas to project development, including refining names, generating docs, simulating builds, and deploying, with support for ongoing iterations and updates."
 license = "MIT"
 repository = "https://github.com/lipish/celadon"
+default-run = "celadon"
+
+[[bin]]
+name = "celadon"
+path = "src/main.rs"
+
+[[bin]]
+name = "test_stream"
+path = "test_stream.rs"
 
 [dependencies]
 axum = { version = "0.8", features = ["macros"] }
