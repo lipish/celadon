@@ -3,7 +3,6 @@ use crate::common::AppResult;
 use crate::db;
 use crate::models::{
     ConversationTurn, DeploymentRun, IdeaEvent, PrdVersion, Project, Session, Stage, StateStore,
-    TaskRun,
 };
 use crate::utils::{now_timestamp, suggest_project_name};
 use serde_json::{Value, json};
