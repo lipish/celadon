@@ -3660,9 +3660,9 @@ dependencies = [
 
 [[package]]
 name = "zene"
-version = "0.5.4"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b42467972f63d0187ff61d2314d95a2f6beb0d418434189faf363535d2e3b59"
+checksum = "95e1128753aff34adae26ea40de890251f22ad45945aa7e31a34ee446f04d696"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3674,6 +3674,7 @@ dependencies = [
  "grep-regex",
  "ignore",
  "llm-connector",
+ "llm_providers",
  "reqwest",
  "serde",
  "serde_json",

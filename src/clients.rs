@@ -161,32 +161,18 @@ impl LlmGateway {
 
     pub fn to_agent_config(&self) -> AgentConfig {
         let mut config = AgentConfig::default();
-        let providers_data = llm_providers::get_providers_data();
         
-        let resolve = |mut role_config: zene::config::RoleConfig, provider_id: &str, api_key: &str, model: &str| -> zene::config::RoleConfig {
-            let native_providers = [
-                "openai", "anthropic", "deepseek", "google", "aliyun",
-                "zhipu", "volcengine", "moonshot", "xiaomi", "minimax", "ollama"
-            ];
-            
-            if native_providers.contains(&provider_id) {
-                role_config.provider = provider_id.to_string();
-            } else if let Some(p) = providers_data.get(provider_id) {
-                // If it's a global/custom provider not natively in zene (like zhipu_global, longcat),
-                // we map it to "openai" and inject its base_url, since virtually all of them are OpenAI-compatible.
-                role_config.provider = "openai".to_string();
-                role_config.base_url = Some(p.base_url.clone());
-            } else {
-                role_config.provider = provider_id.to_string();
-            }
-            role_config.api_key = api_key.to_string();
-            role_config.model = model.to_string();
-            role_config
-        };
+        config.planner.provider = self.planner_provider.clone();
+        config.planner.api_key = self.planner_key.clone();
+        config.planner.model = self.planner_model.clone();
 
-        config.planner = resolve(config.planner, &self.planner_provider, &self.planner_key, &self.planner_model);
-        config.executor = resolve(config.executor, &self.executor_provider, &self.executor_key, &self.executor_model);
-        config.reflector = resolve(config.reflector, &self.reflector_provider, &self.reflector_key, &self.reflector_model);
+        config.executor.provider = self.executor_provider.clone();
+        config.executor.api_key = self.executor_key.clone();
+        config.executor.model = self.executor_model.clone();
+
+        config.reflector.provider = self.reflector_provider.clone();
+        config.reflector.api_key = self.reflector_key.clone();
+        config.reflector.model = self.reflector_model.clone();
 
         config.use_semantic_memory = self.use_semantic_memory;
         config.simple_mode = true; // For performance in Celadon
