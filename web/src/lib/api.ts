@@ -233,6 +233,29 @@ export async function apiGetProviders(): Promise<string[]> {
   return data as unknown as string[];
 }
 
+export type ProviderModel = {
+  id: string;
+  name: string;
+  description?: string;
+  supports_tools?: boolean;
+  context_length?: number;
+  max_output?: number;
+  input_price?: number;
+  output_price?: number;
+};
+
+export type ProviderInfo = {
+  label: string;
+  base_url: string;
+  models: ProviderModel[];
+  docs_url?: string;
+};
+
+export async function apiGetProvidersInfo(): Promise<Record<string, ProviderInfo>> {
+  const data = await getJson("/api/admin/providers_info");
+  return data as unknown as Record<string, ProviderInfo>;
+}
+
 export function apiDevStream(sessionId: string): EventSource {
   const token = getStoredToken();
   const url = `${API_BASE}/api/dev/stream/${sessionId}${token ? `?token=${token}` : ''}`;

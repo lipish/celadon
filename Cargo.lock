@@ -307,6 +307,7 @@ dependencies = [
  "futures",
  "futures-core",
  "llm-connector",
+ "llm_providers",
  "serde",
  "serde_json",
  "sqlx",
@@ -1408,6 +1409,17 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
+]
+
+[[package]]
+name = "llm_providers"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "404d693667dd78b508d178abb93d82a41a8b600027583defa21837dbef20a697"
+dependencies = [
+ "lazy_static",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

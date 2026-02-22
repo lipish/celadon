@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiGetAdminSettings, apiUpdateAdminSetting, apiGetProviders, type SystemSetting } from "@/lib/api";
+import { apiGetAdminSettings, apiUpdateAdminSetting, apiGetProviders, apiGetProvidersInfo, type SystemSetting, type ProviderInfo } from "@/lib/api";
 import { useLocale } from "@/contexts/LocaleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -32,12 +32,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { PROVIDERS } from "@/lib/providers";
-
-// 从 PROVIDERS 生成建议模型列表（仅使用模型 id）
-const PROVIDER_MODELS: Record<string, string[]> = Object.fromEntries(
-    Object.entries(PROVIDERS).map(([k, v]) => [k, v.models.map(m => m.id)])
-);
 
 export default function AdminSettingsPage() {
     const { t } = useLocale();
@@ -45,6 +39,8 @@ export default function AdminSettingsPage() {
     const { isAdmin, loading: authLoading } = useAuth();
     const [settings, setSettings] = useState<SystemSetting[]>([]);
     const [providers, setProviders] = useState<string[]>([]);
+    const [providersInfo, setProvidersInfo] = useState<Record<string, ProviderInfo>>({});
+    const [providerModelsMap, setProviderModelsMap] = useState<Record<string, string[]>>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
     const [error, setError] = useState("");
@@ -75,12 +71,22 @@ export default function AdminSettingsPage() {
 
     const loadData = async () => {
         try {
-            const [settingsData, providersData] = await Promise.all([
+            const [settingsData, providersData, infoData] = await Promise.all([
                 apiGetAdminSettings(),
-                apiGetProviders()
+                apiGetProviders(),
+                apiGetProvidersInfo(),
             ]);
+
+            setProvidersInfo(infoData);
+
+            // Generate models map
+            const generatedModelsMap = Object.fromEntries(
+                Object.entries(infoData).map(([k, v]) => [k, v.models.map(m => m.id)])
+            );
+            setProviderModelsMap(generatedModelsMap);
+
             // 后端可能返回空或不完整列表时，回退到内置 PROVIDERS 的 key
-            const fallbackProviders = Object.keys(PROVIDERS);
+            const fallbackProviders = Object.keys(infoData);
             setProviders(providersData && providersData.length > 0 ? providersData : fallbackProviders);
 
             // 应用默认值（仅当为空时）
@@ -124,7 +130,7 @@ export default function AdminSettingsPage() {
     // 通过模型名反推 provider（用于处理历史数据只有 model 没有 provider 的情况）
     function inferProviderByModel(modelId: string): string | "" {
         if (!modelId) return "";
-        for (const [prov, models] of Object.entries(PROVIDER_MODELS)) {
+        for (const [prov, models] of Object.entries(providerModelsMap)) {
             if (models.includes(modelId)) return prov;
         }
         return "";
@@ -211,7 +217,7 @@ export default function AdminSettingsPage() {
             if (key.endsWith("_PROVIDER")) {
                 const role = key.replace("ZENE_", "").replace("_PROVIDER", "");
                 const modelKey = `ZENE_${role}_MODEL`;
-                const defaultModel = PROVIDER_MODELS[value]?.[0];
+                const defaultModel = providerModelsMap[value]?.[0];
                 if (defaultModel) {
                     next = upsertSetting(next, modelKey, defaultModel);
                     scheduleSave(modelKey, defaultModel, 0);
@@ -241,7 +247,7 @@ export default function AdminSettingsPage() {
     // 统一可选 Provider：后端返回列表 ∪ 本地内置，避免默认值不在下拉项中导致显示为空
     const providerOptions = Array.from(new Set([
         ...providers,
-        ...Object.keys(PROVIDERS),
+        ...Object.keys(providersInfo),
     ]));
 
     const maskKey = (val: string): string => {

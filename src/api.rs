@@ -132,7 +132,8 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
             .route("/api/logout", post(logout))
             .route("/api/admin/settings", get(get_all_settings))
             .route("/api/admin/settings", post(update_system_setting))
-            .route("/api/admin/providers", get(get_providers));
+            .route("/api/admin/providers", get(get_providers))
+            .route("/api/admin/providers_info", get(get_providers_info));
     }
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -532,4 +533,13 @@ async fn get_providers(
     let _ = check_admin(&state, &headers).await?;
     let providers = llm_connector::LlmClient::supported_providers();
     Ok(Json(json!(providers)))
+}
+
+async fn get_providers_info(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+) -> ApiResult {
+    let _ = check_admin(&state, &headers).await?;
+    let providers_data = llm_providers::get_providers_data();
+    Ok(Json(json!(providers_data)))
 }
