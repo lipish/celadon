@@ -244,3 +244,15 @@ export async function apiDevFiles(): Promise<any[]> {
   return data as unknown as any[];
 }
 
+export async function apiDevFileContent(path: string): Promise<string> {
+  const token = getStoredToken();
+  const resp = await fetch(`${API_BASE}/api/dev/files/content?path=${encodeURIComponent(path)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(err || "Failed to fetch file content");
+  }
+  return resp.text();
+}
+

@@ -5,9 +5,9 @@ use crate::service::CeladonService;
 use axum::extract::{Path, State, Query};
 use axum::http::header::AUTHORIZATION;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response, sse::{Event, Sse}};
+use axum::response::{IntoResponse, Response, Json, sse::{Event, Sse}};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::Router;
 use futures_core::stream::Stream;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -119,6 +119,7 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
         .route("/api/prd/generate", post(generate_prd))
         .route("/api/dev/run", post(run_dev))
         .route("/api/dev/files", get(dev_files))
+        .route("/api/dev/files/content", get(dev_file_content))
         .route("/api/dev/stream/{session_id}", get(dev_stream))
         .route("/api/deploy", post(run_deploy))
         .route("/api/projects", get(list_projects))
@@ -271,13 +272,14 @@ async fn generate_prd(
 #[derive(Serialize)]
 pub struct FileNode {
     name: String,
+    path: String,
     #[serde(rename = "type")]
     node_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     children: Option<Vec<FileNode>>,
 }
 
-fn build_file_tree(dir: &std::path::Path) -> Vec<FileNode> {
+fn build_file_tree(dir: &std::path::Path, base_dir: &std::path::Path) -> Vec<FileNode> {
     let mut nodes = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
         let mut entries: Vec<_> = entries.filter_map(|e| e.ok()).collect();
@@ -295,6 +297,7 @@ fn build_file_tree(dir: &std::path::Path) -> Vec<FileNode> {
         for entry in entries {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
+            let rel_path = path.strip_prefix(base_dir).unwrap_or(&path).to_string_lossy().into_owned();
             
             // Skip hidden directories like .git or node_modules
             if name.starts_with('.') || name == "node_modules" || name == "target" {
@@ -304,12 +307,14 @@ fn build_file_tree(dir: &std::path::Path) -> Vec<FileNode> {
             if path.is_dir() {
                 nodes.push(FileNode {
                     name,
+                    path: rel_path,
                     node_type: "folder".to_string(),
-                    children: Some(build_file_tree(&path)),
+                    children: Some(build_file_tree(&path, base_dir)),
                 });
             } else {
                 nodes.push(FileNode {
                     name,
+                    path: rel_path,
                     node_type: "file".to_string(),
                     children: None,
                 });
@@ -321,7 +326,30 @@ fn build_file_tree(dir: &std::path::Path) -> Vec<FileNode> {
 
 async fn dev_files(State(_state): State<ApiState>) -> Json<Vec<FileNode>> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    Json(build_file_tree(&cwd))
+    Json(build_file_tree(&cwd, &cwd))
+}
+
+#[derive(Deserialize)]
+pub struct FileQuery {
+    path: String,
+}
+
+async fn dev_file_content(
+    State(_state): State<ApiState>,
+    Query(query): Query<FileQuery>,
+) -> impl IntoResponse {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let full_path = cwd.join(&query.path);
+    
+    // Security check: ensure the path is within cwd to prevent path traversal
+    if !full_path.starts_with(&cwd) {
+        return (axum::http::StatusCode::FORBIDDEN, "Access denied".to_string());
+    }
+
+    match std::fs::read_to_string(&full_path) {
+        Ok(content) => (axum::http::StatusCode::OK, content),
+        Err(e) => (axum::http::StatusCode::NOT_FOUND, format!("Could not read file: {}", e)),
+    }
 }
 
 async fn run_dev(

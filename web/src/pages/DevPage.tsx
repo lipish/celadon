@@ -5,10 +5,10 @@ import {
   RefreshCw, FileText, MessageSquare, ChevronRight, Terminal,
   GitBranch, GitCommit, Play, Pause, SkipForward, AlertCircle,
   Folder, FolderOpen, File, ChevronDown, Package, Database,
-  Cpu, Activity, Eye,
+  Cpu, Activity, Eye, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiDevRun, apiDevStream, apiDevFiles } from "@/lib/api";
+import { apiDevRun, apiDevStream, apiDevFiles, apiDevFileContent } from "@/lib/api";
 import { useLocale } from "@/contexts/LocaleContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ interface LogLine {
 
 interface FileNode {
   name: string;
+  path: string;
   type: "file" | "folder";
   children?: FileNode[];
   status?: "new" | "modified" | "unchanged";
@@ -103,14 +104,14 @@ const statusColors: Record<string, string> = {
   unchanged: "text-muted-foreground/30",
 };
 
-function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
+function FileTreeNode({ node, depth = 0, onFileClick }: { node: FileNode; depth?: number; onFileClick?: (node: FileNode) => void }) {
   const [open, setOpen] = useState(depth < 2);
   const isFolder = node.type === "folder";
 
   return (
     <div>
       <button
-        onClick={() => isFolder && setOpen(!open)}
+        onClick={() => isFolder ? setOpen(!open) : onFileClick?.(node)}
         className="w-full flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-surface-2 transition-colors group text-left"
         style={{ paddingLeft: `${8 + depth * 14}px` }}
       >
@@ -130,7 +131,7 @@ function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
         {node.status === "modified" && <span className="text-[9px] font-mono text-stage-deploy/60 flex-shrink-0">M</span>}
       </button>
       {isFolder && open && node.children?.map((child, i) => (
-        <FileTreeNode key={i} node={child} depth={depth + 1} />
+        <FileTreeNode key={i} node={child} depth={depth + 1} onFileClick={onFileClick} />
       ))}
     </div>
   );
@@ -353,6 +354,8 @@ export default function DevPage() {
   const [devError, setDevError] = useState("");
   const [isDone, setIsDone] = useState(false);
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
+  const [previewFile, setPreviewFile] = useState<{ path: string; name: string; content: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -361,6 +364,20 @@ export default function DevPage() {
   useEffect(() => {
     apiDevFiles().then(res => setFileTree(res as unknown as FileNode[])).catch(console.error);
   }, []);
+
+  const handleFileClick = async (node: FileNode) => {
+    if (node.type === "folder") return;
+    setPreviewLoading(true);
+    setPreviewFile({ path: node.path, name: node.name, content: "" });
+    try {
+      const content = await apiDevFileContent(node.path);
+      setPreviewFile({ path: node.path, name: node.name, content });
+    } catch (e: any) {
+      setPreviewFile({ path: node.path, name: node.name, content: `Error: ${e.message}` });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!sessionId && state?.idea) navigate("/", { replace: true });
@@ -635,7 +652,7 @@ export default function DevPage() {
             <div className="flex-1 overflow-y-auto py-2">
               {devStarted ? (
                 fileTree.map((node, i) => (
-                  <FileTreeNode key={i} node={node} />
+                  <FileTreeNode key={i} node={node} onFileClick={handleFileClick} />
                 ))
               ) : (
                 <div className="px-3 py-4 text-[11px] font-mono text-muted-foreground/50 text-center">
