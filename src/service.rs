@@ -10,6 +10,12 @@ use serde_json::{Value, json};
 use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
+use axum::response::sse::Event;
+use futures_core::stream::Stream;
+use std::convert::Infallible;
+use async_stream::stream;
+use tokio::sync::mpsc;
+use zene::AgentEvent;
 
 pub struct CeladonService {
     storage_dir: PathBuf,
@@ -282,7 +288,7 @@ impl CeladonService {
         session_id: &str,
         instruction: Option<String>,
         dry_run: bool,
-    ) -> AppResult<Value> {
+    ) -> AppResult<(Value, Option<mpsc::UnboundedReceiver<AgentEvent>>)> {
         let session = self
             .state
             .sessions
@@ -315,44 +321,15 @@ impl CeladonService {
         } else {
             Some(
                 self.zene_client
-                    .run_agent_via_lib(
+                    .run_agent_stream(
                         session_id,
                         &final_instruction,
-                        None, // Use pre-warmed engine
+                        None,
                     )
                     .await?,
             )
         };
-        let (run_status, logs) = if let Some(response) = &zene_response {
-            if response.get("error").is_some() {
-                ("FAILED", "zene agent returned an error")
-            } else {
-                ("SUCCEEDED", "zene agent executed successfully")
-            }
-        } else {
-            ("QUEUED", "dry-run only, zene was not executed")
-        };
-        self.state.task_runs.push(TaskRun {
-            task_id: Uuid::new_v4().to_string(),
-            project_id: project.id.clone(),
-            plan_json: serde_json::to_string_pretty(&zene_payload)?,
-            run_status: run_status.to_string(),
-            logs: logs.to_string(),
-        });
-        if let Some(session_ref) = self.state.sessions.get_mut(session_id) {
-            session_ref.stage = if dry_run {
-                Stage::Developing
-            } else if run_status == "SUCCEEDED" {
-                Stage::Testing
-            } else {
-                Stage::Developing
-            };
-            session_ref.context_snapshot = final_instruction.clone();
-        }
-        self.touch_project(&project.id);
-        self.persist().await?;
-
-        Ok(json!({
+        Ok((json!({
             "message": if dry_run {
                 "development workflow queued (dry-run)"
             } else {
@@ -361,9 +338,8 @@ impl CeladonService {
             "service_layer_method": "workflow.start_development",
             "dry_run": dry_run,
             "zene_request": zene_payload,
-            "zene_response": zene_response,
             "llm_connector_request": llm_payload
-        }))
+        }), zene_response))
     }
 
     pub async fn run_deploy(&mut self, session_id: &str, env: String) -> AppResult<Value> {
@@ -444,6 +420,16 @@ impl CeladonService {
             b_t.cmp(a_t)
         });
         Ok(json!({ "projects": list }))
+    }
+
+    pub fn stream_dev_logs(mut receiver: mpsc::UnboundedReceiver<AgentEvent>) -> AppResult<impl Stream<Item = Result<Event, Infallible>>> {
+        let stream = stream! {
+            while let Some(event) = receiver.recv().await {
+                let json_str = serde_json::to_string(&event).unwrap_or_default();
+                yield Ok(Event::default().data(json_str));
+            }
+        };
+        Ok(stream)
     }
 
     pub fn status(&self, session_id: &str) -> AppResult<Value> {
@@ -573,9 +559,11 @@ impl CeladonService {
     pub async fn update_setting(&mut self, key: &str, value: &str) -> AppResult<()> {
         let pool = self.pool.as_ref().ok_or_else(|| "数据库未启用".to_string())?;
         db::set_system_setting(pool, key, value).await?;
-        // 立即尝试重载 Gateway
+        // 立即尝试重载 Gateway 和 ZeneClient
         if let Ok(new_gateway) = LlmGateway::load(Some(pool)).await {
+            let agent_config = new_gateway.to_agent_config();
             self.llm_gateway = new_gateway;
+            let _ = self.zene_client.init(agent_config).await;
         }
         Ok(())
     }

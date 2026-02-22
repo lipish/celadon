@@ -83,6 +83,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
+name = "async-stream"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -288,16 +310,20 @@ checksum = "066fce287b1d4eafef758e89e09d724a24808a9196fe9756b8ca90e86d0719a2"
 name = "celadon"
 version = "0.1.1"
 dependencies = [
+ "async-stream",
  "axum",
  "bcrypt",
  "chrono",
  "clap",
  "dotenvy",
+ "futures",
+ "futures-core",
  "llm-connector",
  "serde",
  "serde_json",
  "sqlx",
  "tokio",
+ "tokio-stream",
  "tower-http",
  "uuid",
  "zene",
@@ -1456,9 +1482,9 @@ checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 
 [[package]]
 name = "llm-connector"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "550454c78b018e475aaf954b8297d80dee308ffb55648bd73d5f3e7a3690cbfc"
+checksum = "5493c714970364f1e865c7ca35a5c532f260a28914de438f7c13b7585e94810f"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1467,10 +1493,10 @@ dependencies = [
  "log",
  "pin-project-lite",
  "rand 0.8.5",
- "reqwest 0.11.27",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
@@ -2008,12 +2034,10 @@ dependencies = [
  "system-configuration 0.5.1",
  "tokio",
  "tokio-native-tls",
- "tokio-util",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams",
  "web-sys",
  "winreg",
 ]
@@ -2028,6 +2052,7 @@ dependencies = [
  "bytes",
  "encoding_rs",
  "futures-core",
+ "futures-util",
  "h2 0.4.13",
  "http 1.4.0",
  "http-body 1.0.1",
@@ -2052,12 +2077,14 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
+ "tokio-util",
  "tower",
  "tower-http",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
  "webpki-roots",
 ]
@@ -3807,9 +3834,9 @@ dependencies = [
 
 [[package]]
 name = "zene"
-version = "0.4.4"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75c2b7c3a384af8f08383bd5dee8db7a75d7b22ab0db9c2d481ff917eac72a5e"
+checksum = "8de485b4b33b209194bb71b81b43a2333852be65a88e14cb4d5d6f34cd1c0a65"
 dependencies = [
  "anyhow",
  "async-trait",

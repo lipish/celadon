@@ -233,3 +233,9 @@ export async function apiGetProviders(): Promise<string[]> {
   return data as unknown as string[];
 }
 
+export function apiDevStream(sessionId: string): EventSource {
+  const token = getStoredToken();
+  const url = `${API_BASE}/api/dev/stream/${sessionId}${token ? `?token=${token}` : ''}`;
+  return new EventSource(url);
+}
+

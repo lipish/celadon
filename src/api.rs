@@ -2,22 +2,30 @@ use crate::auth;
 use crate::common::AppResult;
 use crate::db;
 use crate::service::CeladonService;
-use axum::extract::{Path, State};
+use axum::extract::{Path, State, Query};
 use axum::http::header::AUTHORIZATION;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Response, sse::{Event, Sse}};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use futures_core::stream::Stream;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::convert::Infallible;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
+
+use tokio::sync::{mpsc, Mutex};
+use std::sync::Arc;
+use zene::AgentEvent;
 
 #[derive(Clone)]
 struct ApiState {
     storage_dir: PathBuf,
     pool: Option<db::Pool>,
+    streams: Arc<Mutex<HashMap<String, mpsc::UnboundedReceiver<AgentEvent>>>>,
 }
 
 #[derive(Debug)]
@@ -101,6 +109,7 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
     let state = ApiState {
         storage_dir,
         pool,
+        streams: Arc::new(Mutex::new(HashMap::new())),
     };
     let mut app = Router::new()
         .route("/api/health", get(health))
@@ -109,6 +118,7 @@ pub async fn serve(storage_dir: PathBuf, port: u16, pool: Option<db::Pool>) -> A
         .route("/api/idea", post(idea))
         .route("/api/prd/generate", post(generate_prd))
         .route("/api/dev/run", post(run_dev))
+        .route("/api/dev/stream/:session_id", get(dev_stream))
         .route("/api/deploy", post(run_deploy))
         .route("/api/projects", get(list_projects))
         .route("/api/status/{session_id}", get(status));
@@ -264,7 +274,7 @@ async fn run_dev(
 ) -> ApiResult {
     let user_id = resolve_user_id(&state, &headers).await?;
     let mut service = make_service(&state, user_id).await?;
-    let out = service
+    let (out, receiver_opt) = service
         .run_dev(
             &req.session_id,
             req.instruction,
@@ -272,7 +282,43 @@ async fn run_dev(
         )
         .await
         .map_err(ApiError::from)?;
+        
+    if let Some(rx) = receiver_opt {
+        state.streams.lock().await.insert(req.session_id.clone(), rx);
+    }
+    
     Ok(Json(out))
+}
+
+async fn dev_stream(
+    State(state): State<ApiState>,
+    headers: axum::http::HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+    Path(session_id): Path<String>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ApiError> {
+    let _user_id = if let Some(token) = params.get("token") {
+        if let Some(pool) = &state.pool {
+            let parsed_token = Uuid::parse_str(token).map_err(|_| ApiError("Invalid token format".to_string()))?;
+            let u_id = auth::verify_token(pool, parsed_token)
+                .await
+                .map_err(|e| ApiError(e.to_string()))?;
+            Some(u_id)
+        } else {
+            None
+        }
+    } else {
+        resolve_user_id(&state, &headers).await?
+    };
+
+    let receiver = {
+        let mut streams = state.streams.lock().await;
+        streams.remove(&session_id).ok_or_else(|| {
+            ApiError(format!("No active stream for session {}", session_id))
+        })?
+    };
+
+    let stream = CeladonService::stream_dev_logs(receiver).map_err(ApiError::from)?;
+    Ok(Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new()))
 }
 
 async fn run_deploy(

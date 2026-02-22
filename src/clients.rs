@@ -9,6 +9,8 @@ use zene::config::AgentConfig;
 use zene::engine::session::store::FileSessionStore;
 use zene::RunRequest;
 use zene::ZeneEngine;
+use zene::AgentEvent;
+use tokio::sync::mpsc;
 
 pub struct ZeneClient {
     engine: Option<Arc<tokio::sync::Mutex<ZeneEngine>>>,
@@ -41,53 +43,32 @@ impl ZeneClient {
         })
     }
 
-    pub async fn run_agent_via_lib(
+    pub async fn run_agent_stream(
         &self,
         session_id: &str,
         instruction: &str,
         config_override: Option<AgentConfig>,
-    ) -> AppResult<Value> {
-        let session_id = session_id.to_string();
-        let instruction = instruction.to_string();
+    ) -> AppResult<mpsc::UnboundedReceiver<AgentEvent>> {
+        let req = RunRequest {
+            prompt: instruction.to_string(),
+            session_id: session_id.to_string(),
+            env_vars: None,
+        };
+
         let engine_arc = self.engine.clone();
 
-        tokio::task::spawn_blocking(move || -> AppResult<Value> {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()?;
-            runtime.block_on(async move {
-                let req = RunRequest {
-                    prompt: instruction,
-                    session_id: session_id.clone(),
-                    env_vars: None,
-                };
-
-                // Use warmed engine if available and no override
-                let result = if let (Some(engine_lock), None) = (engine_arc, config_override) {
-                    let engine = engine_lock.lock().await;
-                    engine.run(req).await?
-                } else {
-                    // Fallback or override
-                    let config = AgentConfig::from_env()?;
-                    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-                    let storage_dir = PathBuf::from(&home).join(".zene/sessions");
-                    let store = Arc::new(FileSessionStore::new(storage_dir)?);
-                    let engine = ZeneEngine::new(config, store).await?;
-                    engine.run(req).await?
-                };
-
-                Ok(json!({
-                    "jsonrpc": "2.0",
-                    "result": {
-                        "status": "completed",
-                        "message": result.output,
-                        "session_id": result.session_id
-                    }
-                }))
-            })
-        })
-        .await
-        .map_err(|e| format!("failed to join zene task: {e}"))?
+        if let (Some(engine_lock), None) = (engine_arc, config_override) {
+            let engine = engine_lock.lock().await;
+            Ok(engine.run_stream(req).await?)
+        } else {
+            // Fallback or override
+            let config = AgentConfig::from_env()?;
+            let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            let storage_dir = PathBuf::from(&home).join(".zene/sessions");
+            let store = Arc::new(FileSessionStore::new(storage_dir)?);
+            let engine = ZeneEngine::new(config, store).await?;
+            Ok(engine.run_stream(req).await?)
+        }
     }
 }
 

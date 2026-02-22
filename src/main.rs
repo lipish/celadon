@@ -50,7 +50,7 @@ async fn main() -> AppResult<()> {
                         session_id,
                         instruction,
                         dry_run,
-                    } => service.run_dev(&session_id, instruction, dry_run).await?,
+                    } => service.run_dev(&session_id, instruction, dry_run).await?.0,
                 },
                 Commands::Deploy { session_id, env } => {
                     service.run_deploy(&session_id, env).await?

@@ -8,7 +8,7 @@ import {
   Cpu, Activity, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiDevRun } from "@/lib/api";
+import { apiDevRun, apiDevStream } from "@/lib/api";
 import { useLocale } from "@/contexts/LocaleContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -372,16 +372,7 @@ export default function DevPage() {
     { id: "32", type: "success", text: t("mockLogLintDone"), time: makeTime(44), agent: undefined },
   ];
 
-  const STREAM_LOGS: LogLine[] = [
-    { id: "s1", type: "info", text: t("mockLogBuildSubCard"), time: "", agent: "Executor" },
-    { id: "s2", type: "success", text: t("mockLogSubCardWritten"), time: "", agent: "Executor" },
-    { id: "s3", type: "info", text: t("mockLogIntegrateStripe"), time: "", agent: "Executor" },
-    { id: "s4", type: "agent", text: t("mockLogWebhookVerify"), time: "", agent: "Reflector" },
-    { id: "s5", type: "info", text: t("mockLogExport"), time: "", agent: "Executor" },
-    { id: "s6", type: "success", text: t("mockLogExportWritten"), time: "", agent: "Executor" },
-    { id: "s7", type: "info", text: t("mockLogRunningTests"), time: "", agent: undefined },
-    { id: "s8", type: "success", text: t("mockLogTestsPass"), time: "", agent: undefined },
-  ];
+
 
   const INITIAL_COMMITS: CommitRecord[] = [
     { hash: "a3f2d1", message: "feat: initialize prisma schema with User, Subscription, Invoice", time: locale === "zh" ? "5分前" : "5m ago", files: 3 },
@@ -410,6 +401,7 @@ export default function DevPage() {
   const [devStarted, setDevStarted] = useState(false);
   const [devLoading, setDevLoading] = useState(false);
   const [devError, setDevError] = useState("");
+  const [isDone, setIsDone] = useState(false);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -424,12 +416,12 @@ export default function DevPage() {
     try {
       await apiDevRun(sessionId, undefined, false);
       setDevStarted(true);
-      setLogs(INITIAL_LOGS);
-      setCommits(INITIAL_COMMITS);
+      setLogs([]);
+      setCommits([]);
       setAgents(INITIAL_AGENTS);
-      setTotalFiles(14);
-      setTotalLines(1347);
-      setLoopCount(7);
+      setTotalFiles(0);
+      setTotalLines(0);
+      setLoopCount(0);
     } catch (e) {
       setDevError(e instanceof Error ? e.message : t("startError"));
     } finally {
@@ -443,62 +435,89 @@ export default function DevPage() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  // Stream new log lines（仅在实际点击「启动开发」后）
+  // Stream new log lines from backend SSE
   useEffect(() => {
-    if (!devStarted || paused || streamIdx >= STREAM_LOGS.length) return;
+    if (!devStarted || paused) return;
 
-    streamTimer.current = setTimeout(() => {
-      const log = {
-        ...STREAM_LOGS[streamIdx],
-        time: makeTime(0),
-        id: `s-${streamIdx}`,
-      };
-      setLogs((prev) => [...prev, log]);
-      setStreamIdx((i) => i + 1);
+    const source = apiDevStream(sessionId);
 
-      // Update stats
-      if (log.type === "success") {
-        setTotalFiles((f) => f + 1);
-        setTotalLines((l) => l + Math.floor(50 + Math.random() * 150));
-      }
-      if (log.agent === "Reflector") {
-        setLoopCount((c) => c + 1);
-      }
+    source.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        let newLog: LogLine | null = null;
 
-      // Evolve agent states
-      if (streamIdx === 1) {
-        setAgents((prev) => prev.map((a) =>
-          a.role === "Executor" ? { ...a, task: t("mockLogIntegrateStripeTask") } : a
-        ));
-      }
-      if (streamIdx === 3) {
-        setAgents((prev) => prev.map((a) =>
-          a.role === "Reflector" ? { ...a, status: "working", task: t("mockLogReviewWebhook") } : a
-        ));
-      }
-      if (streamIdx === 5) {
-        setAgents((prev) => prev.map((a) =>
-          a.role === "Reflector" ? { ...a, status: "idle", task: t("mockLogWaitCommits") } : a
-        ));
-        setCommits((prev) => [
-          ...prev,
-          { hash: "g7c1e8", message: t("mockLogV03Msg"), time: locale === "zh" ? "刚刚" : "just now", files: 2 },
-        ]);
-      }
-      if (streamIdx === 7) {
-        setAgents((prev) => prev.map((a) =>
-          a.role === "Executor" ? { ...a, status: "done", task: t("mockLogAllTasksDone") } : a
-        ));
-      }
-    }, 1800 + Math.random() * 1000);
+        switch (event.type) {
+          case 'ThoughtDelta':
+            newLog = {
+              id: Math.random().toString(),
+              type: "agent",
+              text: event.data,
+              time: makeTime(0),
+              agent: "Executor"
+            };
+            break;
+          case 'ToolCall':
+            const cmd = `${event.data.name} ${JSON.stringify(event.data.arguments)}`;
+            newLog = {
+              id: Math.random().toString(),
+              type: "cmd",
+              text: cmd,
+              time: makeTime(0)
+            };
+            break;
+          case 'ToolResult':
+            newLog = {
+              id: Math.random().toString(),
+              type: "info",
+              text: (event.data.result || "").substring(0, 150) + "...",
+              time: makeTime(0)
+            };
+            setLoopCount(c => c + 1);
+            break;
+          case 'FileStateChanged':
+            setTotalFiles(f => f + 1);
+            setTotalLines(l => l + Math.floor(20 + Math.random() * 50));
+            newLog = {
+              id: Math.random().toString(),
+              type: "info",
+              text: `[File ${event.data?.change_type}] ${event.data?.path}`,
+              time: makeTime(0)
+            };
+            break;
+          case 'Finished':
+            setIsDone(true);
+            newLog = {
+              id: Math.random().toString(),
+              type: "info",
+              text: "✅ Execution Completed!",
+              time: makeTime(0)
+            };
+            source.close();
+            break;
+          case 'Error':
+            setDevError(event.data?.message || "Execution Error");
+            setIsDone(true);
+            source.close();
+            break;
+        }
+
+        if (newLog) {
+          setLogs(prev => [...prev, newLog!]);
+        }
+      } catch (err) { }
+    };
+
+    source.onerror = () => {
+      setIsDone(true);
+      source.close();
+    };
 
     return () => {
-      if (streamTimer.current) clearTimeout(streamTimer.current);
+      source.close();
     };
-  }, [devStarted, streamIdx, paused]);
+  }, [devStarted, paused, sessionId]);
 
-  const isDone = devStarted && streamIdx >= STREAM_LOGS.length;
-  const progress = devStarted ? Math.round((streamIdx / STREAM_LOGS.length) * 100) : 0;
+  const progress = devStarted ? (isDone ? 100 : Math.min(99, Math.round(logs.length * 1.5))) : 0;
 
   const shortIdea = idea.length > 36 ? idea.slice(0, 33) + "..." : idea;
 
