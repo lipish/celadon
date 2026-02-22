@@ -354,11 +354,13 @@ export default function DevPage() {
   const [isDone, setIsDone] = useState(false);
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
 
-  useEffect(() => {
-    apiDevFiles().then(res => setFileTree(res as FileNode[])).catch(console.error);
-  }, []);
-
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(true);
+
+  useEffect(() => {
+    apiDevFiles().then(res => setFileTree(res as unknown as FileNode[])).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (!sessionId && state?.idea) navigate("/", { replace: true });
@@ -385,10 +387,19 @@ export default function DevPage() {
   };
   const streamTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-scroll terminal
+  // Auto-scroll terminal only if tracking bottom
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (autoScrollRef.current && terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
   }, [logs]);
+
+  const handleTerminalScroll = () => {
+    if (!terminalRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = terminalRef.current;
+    // If user scrolls up more than 30px from bottom, disable auto-scroll
+    autoScrollRef.current = scrollHeight - scrollTop - clientHeight < 30;
+  };
 
   // Stream new log lines from backend SSE
   useEffect(() => {
@@ -670,7 +681,11 @@ export default function DevPage() {
 
             {/* Terminal tab */}
             {activeTab === "terminal" && (
-              <div className="flex-1 overflow-y-auto bg-background/60 p-3 font-mono">
+              <div
+                className="flex-1 overflow-y-auto bg-background/60 p-3 font-mono"
+                ref={terminalRef}
+                onScroll={handleTerminalScroll}
+              >
                 <div className="space-y-0.5">
                   {logs.length === 0 ? (
                     <div className="flex items-center gap-2 py-2 px-2 text-muted-foreground/60 text-[11px]">
