@@ -304,7 +304,15 @@ impl CeladonService {
             "Implement the latest PRD for project `{}` and run tests.",
             project.name
         );
-        let final_instruction = instruction.unwrap_or(default_instruction);
+        let mut final_instruction = instruction.unwrap_or(default_instruction);
+        // Inject strict tool guardrails, especially for models like Deepseek that might hallucinate empty arguments
+        final_instruction.push_str(
+            "\n\nCRITICAL SYSTEM RULES:\n\
+             1. When using `read_file`, you MUST provide the `path` argument (e.g., `{\"path\": \"Cargo.toml\"}`).\n\
+             2. When using `search_code`, you MUST provide the `pattern` argument (e.g., `{\"pattern\": \"fn main\"}`).\n\
+             DO NOT CALL THESE TOOLS WITHOUT ARGUMENTS."
+        );
+        
         let workspace = std::env::current_dir()?.to_string_lossy().to_string();
 
         let zene_payload =
