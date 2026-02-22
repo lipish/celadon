@@ -146,9 +146,29 @@ impl LlmGateway {
 
         let use_semantic_memory = get_setting("ZENE_USE_SEMANTIC_MEMORY", "false") == "true";
 
-        // Basic client for non-zene features
+        // Basic client for non-zene features (e.g. clarify, generate_prd)
+        // Use the planner provider & key if available, otherwise read DEEPSEEK_API_KEY, otherwise "dummy".
         let basic_key = if !planner_key.is_empty() { planner_key.clone() } else { get_setting("DEEPSEEK_API_KEY", "dummy") };
-        let client = LlmClient::deepseek(&basic_key).unwrap_or_else(|_| LlmClient::deepseek("dummy").unwrap());
+        
+        let client = if basic_key == "dummy" || basic_key.trim().is_empty() {
+            LlmClient::openai("dummy").unwrap() // Fallback mock
+        } else {
+            let providers_data = llm_providers::get_providers_data();
+            if let Some(p) = providers_data.get(&planner_provider) {
+                LlmClient::openai_with_base_url(&basic_key, &p.base_url)
+                    .unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()) // Fallback
+            } else {
+                match planner_provider.as_str() {
+                    "zhipu" => LlmClient::zhipu(&basic_key).unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()),
+                    "moonshot" => LlmClient::moonshot(&basic_key).unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()),
+                    "aliyun" => LlmClient::aliyun(&basic_key).unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()),
+                    "openai" => LlmClient::openai(&basic_key).unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()),
+                    "anthropic" => LlmClient::anthropic(&basic_key).unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()),
+                    "google" => LlmClient::google(&basic_key).unwrap_or_else(|_| LlmClient::deepseek(&basic_key).unwrap()),
+                    _ => LlmClient::deepseek(&basic_key).unwrap_or_else(|_| LlmClient::deepseek("dummy").unwrap()),
+                }
+            }
+        };
 
         Ok(Self {
             client: Arc::new(client),
