@@ -106,6 +106,7 @@ pub struct LlmGateway {
     pub reflector_model: String,
 
     pub use_semantic_memory: bool,
+    pub is_dummy: bool,
 }
 
 impl LlmGateway {
@@ -150,8 +151,9 @@ impl LlmGateway {
         // Use the planner provider & key if available, otherwise read DEEPSEEK_API_KEY, otherwise "dummy".
         let basic_key = if !planner_key.is_empty() { planner_key.clone() } else { get_setting("DEEPSEEK_API_KEY", "dummy") };
         
-        let client = if basic_key == "dummy" || basic_key.trim().is_empty() {
-            LlmClient::openai("dummy").unwrap() // Fallback mock
+        let is_dummy = basic_key == "dummy" || basic_key.trim().is_empty();
+        let client = if is_dummy {
+            LlmClient::openai("dummy").unwrap() // Fallback mock - won't be called due to is_dummy check
         } else {
             let providers_data = llm_providers::get_providers_data();
             if let Some(p) = providers_data.get(&planner_provider) {
@@ -176,6 +178,7 @@ impl LlmGateway {
             executor_provider, executor_key, executor_model,
             reflector_provider, reflector_key, reflector_model,
             use_semantic_memory,
+            is_dummy,
         })
     }
 
@@ -224,6 +227,9 @@ impl LlmGateway {
         let request = ChatRequest::new(&self.planner_model)
             .with_messages(msgs)
             .with_max_tokens(2048);
+        if self.is_dummy {
+            return Ok("请先在管理员设置中配置 LLM API Key 以启用需求澄清功能。".to_string());
+        }
         let response = self
             .client
             .chat(&request)
