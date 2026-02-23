@@ -230,12 +230,23 @@ impl LlmGateway {
         if self.is_dummy {
             return Ok("请先在管理员设置中配置 LLM API Key 以启用需求澄清功能。".to_string());
         }
-        let response = self
-            .client
-            .chat(&request)
-            .await
-            .map_err(|e| format!("LLM 调用失败: {e}"))?;
-        Ok(response.content.clone())
+
+        match self.client.chat(&request).await {
+            Ok(response) => Ok(response.content),
+            Err(e) => {
+                let err_msg = e.to_string();
+                let lower = err_msg.to_lowercase();
+                if lower.contains("insufficient balance") || lower.contains("recharge") || lower.contains("quota") || lower.contains("balance") || lower.contains("credit") {
+                    Ok("LLM 余额不足或额度耗尽，请检查您的 API 账户余额及配额限制。".to_string())
+                } else if lower.contains("authentication failed") || lower.contains("invalid api key") || lower.contains("api_key_invalid") {
+                    Ok("LLM API Key 无效或认证失败，请在管理员设置中检查您的配置。".to_string())
+                } else if lower.contains("rate limit") || lower.contains("too many requests") {
+                    Ok("LLM 调用频率过快，请稍后再试。".to_string())
+                } else {
+                    Err(format!("LLM 调用失败: {err_msg}").into())
+                }
+            }
+        }
     }
 
     pub fn invoke_payload(&self, model: &str, prompt: &str, context: &Value) -> Value {
