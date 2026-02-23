@@ -262,14 +262,18 @@ export function apiDevStream(sessionId: string): EventSource {
   return new EventSource(url);
 }
 
-export async function apiDevFiles(): Promise<any[]> {
-  const data = await getJson("/api/dev/files");
+export async function apiDevFiles(sessionId?: string): Promise<any[]> {
+  const url = sessionId ? `/api/dev/files?session_id=${sessionId}` : "/api/dev/files";
+  const data = await getJson(url);
   return data as unknown as any[];
 }
 
-export async function apiDevFileContent(path: string): Promise<string> {
+export async function apiDevFileContent(path: string, sessionId?: string): Promise<string> {
   const token = getStoredToken();
-  const resp = await fetch(`${API_BASE}/api/dev/files/content?path=${encodeURIComponent(path)}`, {
+  const params = new URLSearchParams({ path });
+  if (sessionId) params.append("session_id", sessionId);
+
+  const resp = await fetch(`${API_BASE}/api/dev/files/content?${params.toString()}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!resp.ok) {

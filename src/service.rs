@@ -18,7 +18,7 @@ use zene::AgentEvent;
 
 pub struct CeladonService {
     storage_dir: PathBuf,
-    state: StateStore,
+    pub state: StateStore,
     zene_client: ZeneClient,
     llm_gateway: LlmGateway,
     pool: Option<db::Pool>,
@@ -79,6 +79,10 @@ impl CeladonService {
         })
     }
 
+    pub fn workspace_dir(&self, project_id: &str) -> PathBuf {
+        self.storage_dir.join("workspaces").join(project_id)
+    }
+
     async fn persist(&self) -> AppResult<()> {
         if let (Some(pool), Some(uid)) = (self.pool.as_ref(), self.user_id) {
             db::save_user_state(pool, uid, &self.state).await?;
@@ -113,6 +117,10 @@ impl CeladonService {
         );
         self.append_conversation_turn(&session_id, "user", &idea)?;
         self.append_idea_event(&session_id, idea.clone())?;
+
+        // Create project workspace
+        let workspace = self.workspace_dir(&project_id);
+        fs::create_dir_all(&workspace)?;
 
         let history: Vec<(String, String)> = Vec::new();
         let assistant_reply = self
@@ -305,19 +313,27 @@ impl CeladonService {
             project.name
         );
         let mut final_instruction = instruction.unwrap_or(default_instruction);
-        // Inject strict tool guardrails, especially for models like Deepseek that might hallucinate empty arguments
-        final_instruction.push_str(
+        let workspace = self.workspace_dir(&project.id);
+        fs::create_dir_all(&workspace)?;
+        let workspace_str = workspace.to_string_lossy().to_string();
+
+        // Inject strict tool guardrails and workspace anchoring
+        final_instruction.push_str(&format!(
             "\n\nCRITICAL SYSTEM RULES:\n\
-             1. When using `read_file`, you MUST provide the `path` argument (e.g., `{\"path\": \"Cargo.toml\"}`).\n\
-             2. When using `search_code`, you MUST provide the `pattern` argument (e.g., `{\"pattern\": \"fn main\"}`).\n\
-             DO NOT CALL THESE TOOLS WITHOUT ARGUMENTS."
-        );
+             1. Your project workspace is strictly restricted to: `{}`\n\
+             2. ALL file operations (read_file, write_file, list_files, search_code) MUST use ABSOLUTE paths starting with this workspace.\n\
+             3. ALL commands (`run_command`) MUST start with `cd {} && ...` to ensure they run in the correct context.\n\
+             4. You are FORBIDDEN from accessing any files outside of this workspace.\n\
+             5. When using `read_file`, you MUST provide the `path` argument (e.g., `{{\"path\": \"{}/Cargo.toml\"}}`).\n\
+             6. When using `search_code`, you MUST provide the `pattern` argument.\n\
+             DO NOT CALL THESE TOOLS WITHOUT ARGUMENTS.",
+            workspace_str, workspace_str, workspace_str
+        ));
         
-        let workspace = std::env::current_dir()?.to_string_lossy().to_string();
 
         let zene_payload =
             self.zene_client
-                .agent_run_payload(session_id, &final_instruction, &workspace);
+                .agent_run_payload(session_id, &final_instruction, &workspace_str);
         let llm_payload = self.llm_gateway.invoke_payload(
             "deepseek-chat",
             "Execute coding task based on current project context.",

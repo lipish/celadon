@@ -133,14 +133,14 @@ export default function Index() {
       {/* Header / Nav */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-celadon flex items-center justify-center">
-              <Zap size={14} className="text-primary-foreground" />
+          <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity group">
+            <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center shadow-celadon group-hover:scale-105 transition-transform">
+              <Zap size={16} className="text-primary-foreground fill-primary-foreground" />
             </div>
-            <span className="font-mono font-bold text-sm text-foreground tracking-tight">
+            <span className="font-sans font-extrabold text-base text-foreground tracking-tighter">
               {t("appName").toLowerCase()}
             </span>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-4">
             <DropdownMenu>
@@ -350,26 +350,25 @@ export default function Index() {
                     <button
                       key={project.project_id}
                       onClick={() => navigate(stageToRoute(project.stage), { state: { sessionId: project.session_id } })}
-                      className="w-full text-left p-4 rounded-xl bg-surface-2 border border-border/50 hover:border-celadon/40 hover:bg-surface-3 transition-all group relative overflow-hidden"
+                      className="w-full text-left p-5 rounded-2xl bg-surface-1 border border-border/40 hover:border-primary/30 hover:shadow-card transition-all group relative overflow-hidden"
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-mono font-bold text-sm text-foreground truncate max-w-[150px]">
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="font-sans font-bold text-sm text-foreground truncate max-w-[150px]">
                           {project.name}
                         </h3>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background/50 border border-border text-muted-foreground">
+                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
                           {project.stage}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Terminal size={10} className="text-celadon" />
+                      <div className="flex items-center gap-3 text-[10px] font-mono font-medium text-muted-foreground/60">
+                        <span className="flex items-center gap-1.5 font-bold text-primary/80">
+                          <Terminal size={11} />
                           {project.status === "ACTIVE" ? t("active") : t("paused")}
                         </span>
                       </div>
-                      <ChevronRight
-                        size={14}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all"
-                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary/5 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
+                        <ChevronRight size={16} className="text-primary" />
+                      </div>
                     </button>
                   ))
                 ) : (
@@ -633,29 +632,30 @@ function ExampleCard({ title, desc, status, commits, time }: {
 }) {
   const { t } = useLocale();
   return (
-    <div className="p-6 rounded-2xl bg-surface-2 border border-border hover:border-celadon/50 transition-all group flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-mono font-bold text-foreground group-hover:text-celadon transition-colors">{title}</h3>
-        <span className={cn("text-[10px] font-mono px-2 py-0.5 rounded-full border",
-          status === "COMPLETED" ? "bg-celadon/10 border-celadon/20 text-celadon" :
-            status === "DEVELOPING" ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-500" :
-              "bg-blue-500/10 border-blue-500/20 text-blue-500"
+    <div className="p-7 rounded-[2rem] bg-surface-1 border border-border/50 hover:border-primary/20 hover:shadow-card transition-all group flex flex-col h-full relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -mr-12 -mt-12 blur-2xl group-hover:bg-primary/10 transition-colors" />
+      <div className="flex items-center justify-between mb-5 relative">
+        <h3 className="font-sans font-bold text-base text-foreground group-hover:text-primary transition-colors">{title}</h3>
+        <span className={cn("text-[10px] font-mono font-bold px-3 py-1 rounded-full border shadow-sm",
+          status === "COMPLETED" ? "bg-green-50 border-green-100 text-green-600" :
+            status === "DEVELOPING" ? "bg-blue-50 border-blue-100 text-blue-600" :
+              "bg-gray-50 border-gray-100 text-gray-600"
         )}>
           {status}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground font-mono leading-relaxed mb-8 flex-1">
+      <p className="text-sm text-muted-foreground/80 font-sans leading-relaxed mb-10 flex-1 relative">
         {desc}
       </p>
-      <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
-        <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
-          <span>{time}</span>
-          <span className="w-1 h-1 rounded-full bg-border" />
+      <div className="flex items-center justify-between mt-auto pt-5 border-t border-border/30 relative">
+        <div className="flex items-center gap-3 text-[10px] font-mono font-semibold text-muted-foreground/40">
+          <span className="flex items-center gap-1"><Sparkles size={10} /> {time}</span>
+          <span className="w-1 h-1 rounded-full bg-border/50" />
           <span>{commits} {t("commitsCount")}</span>
         </div>
-        <button className="px-3 py-1.5 rounded-lg bg-surface-3 border border-border text-[10px] uppercase font-mono font-bold flex items-center gap-1 text-muted-foreground hover:text-celadon hover:border-celadon/30 transition-all">
+        <button className="px-4 py-2 rounded-xl bg-background border border-border/50 text-[10px] uppercase font-mono font-extrabold flex items-center gap-2 text-muted-foreground hover:text-primary hover:border-primary/30 hover:shadow-sm transition-all">
           {t("viewDetails")}
-          <ChevronRight size={10} />
+          <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
     </div>

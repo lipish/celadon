@@ -109,26 +109,28 @@ function FileTreeNode({ node, depth = 0, onFileClick }: { node: FileNode; depth?
   const isFolder = node.type === "folder";
 
   return (
-    <div>
+    <div className="mb-0.5">
       <button
         onClick={() => isFolder ? setOpen(!open) : onFileClick?.(node)}
-        className="w-full flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-surface-2 transition-colors group text-left"
-        style={{ paddingLeft: `${8 + depth * 14}px` }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-secondary/80 transition-all group text-left relative"
+        style={{ paddingLeft: `${12 + depth * 14}px` }}
       >
-        {isFolder ? (
-          open ? <FolderOpen size={12} className="text-stage-deploy/70 flex-shrink-0" />
-            : <Folder size={12} className="text-stage-deploy/50 flex-shrink-0" />
-        ) : (
-          <File size={12} className="text-muted-foreground/40 flex-shrink-0" />
-        )}
+        <div className="flex-shrink-0 w-4 flex justify-center">
+          {isFolder ? (
+            open ? <FolderOpen size={14} className="text-primary/70" />
+              : <Folder size={14} className="text-primary/50" />
+          ) : (
+            <File size={14} className="text-muted-foreground/40" />
+          )}
+        </div>
         <span className={cn(
-          "text-[11px] font-mono truncate flex-1",
-          node.status ? statusColors[node.status] : "text-muted-foreground/60"
+          "text-xs font-sans font-medium truncate flex-1 tracking-tight",
+          node.status ? statusColors[node.status] : "text-foreground/80 group-hover:text-primary transition-colors"
         )}>
           {node.name}
         </span>
-        {node.status === "new" && <span className="text-[9px] font-mono text-celadon/60 flex-shrink-0">N</span>}
-        {node.status === "modified" && <span className="text-[9px] font-mono text-stage-deploy/60 flex-shrink-0">M</span>}
+        {node.status === "new" && <span className="text-[9px] font-mono font-bold text-green-500 bg-green-50 px-1 rounded flex-shrink-0">NEW</span>}
+        {node.status === "modified" && <span className="text-[9px] font-mono font-bold text-blue-500 bg-blue-50 px-1 rounded flex-shrink-0">MOD</span>}
       </button>
       {isFolder && open && node.children?.map((child, i) => (
         <FileTreeNode key={i} node={child} depth={depth + 1} onFileClick={onFileClick} />
@@ -183,37 +185,40 @@ function LogRow({ log }: { log: LogLine }) {
 
 function AgentCard({ agent }: { agent: AgentState }) {
   const { t } = useLocale();
-  const colors: Record<AgentRole, { ring: string; dot: string; label: string }> = {
-    Planner: { ring: "border-stage-prd/30 bg-stage-prd/5", dot: "bg-stage-prd", label: "text-stage-prd" },
-    Executor: { ring: "border-stage-dev/30 bg-stage-dev/5", dot: "bg-stage-dev", label: "text-stage-dev" },
-    Reflector: { ring: "border-stage-deploy/30 bg-stage-deploy/5", dot: "bg-stage-deploy", label: "text-stage-deploy" },
+  const colors: Record<AgentRole, { ring: string; dot: string; label: string; bg: string }> = {
+    Planner: { ring: "border-stage-prd/20", dot: "bg-stage-prd", label: "text-stage-prd", bg: "bg-stage-prd/5" },
+    Executor: { ring: "border-stage-dev/20", dot: "bg-stage-dev", label: "text-stage-dev", bg: "bg-stage-dev/5" },
+    Reflector: { ring: "border-stage-deploy/20", dot: "bg-stage-deploy", label: "text-stage-deploy", bg: "bg-stage-deploy/5" },
   };
   const c = colors[agent.role];
 
   return (
-    <div className={cn("rounded-xl border p-3 transition-all", c.ring)}>
-      <div className="flex items-center gap-2 mb-2">
+    <div className={cn(
+      "rounded-2xl border p-4 transition-all hover:shadow-card bg-surface-1",
+      c.ring
+    )}>
+      <div className="flex items-center gap-2.5 mb-2.5">
         <div className={cn(
-          "w-2 h-2 rounded-full flex-shrink-0",
-          agent.status === "working" && `${c.dot} animate-pulse`,
+          "w-2.5 h-2.5 rounded-full flex-shrink-0",
+          agent.status === "working" && `${c.dot} animate-pulse shadow-glow`,
           agent.status === "thinking" && `${c.dot} opacity-60 animate-pulse`,
-          agent.status === "done" && "bg-celadon",
+          agent.status === "done" && "bg-stage-deploy",
           agent.status === "idle" && "bg-muted-foreground/20",
         )} />
-        <span className={cn("text-xs font-mono font-semibold", c.label)}>{agent.role}</span>
-        <span className="ml-auto text-[9px] font-mono text-muted-foreground/40">
-          {t("devLoops")} {agent.loopCount}
+        <span className={cn("text-xs font-sans font-bold tracking-tight", c.label)}>{agent.role}</span>
+        <span className="ml-auto text-[10px] font-mono font-bold text-muted-foreground/30">
+          Loops: {agent.loopCount}
         </span>
       </div>
-      <p className="text-[10px] font-mono text-muted-foreground/60 leading-relaxed">
+      <p className="text-[11px] font-sans font-medium text-foreground/70 leading-relaxed mb-3">
         {agent.task}
       </p>
       {agent.status !== "idle" && (
-        <div className="mt-2 h-0.5 rounded-full bg-surface-3 overflow-hidden">
+        <div className="h-1 rounded-full bg-secondary overflow-hidden">
           <div
             className={cn(
               "h-full rounded-full transition-all duration-1000",
-              agent.status === "done" ? "w-full bg-celadon" : `w-2/3 ${c.dot}`,
+              agent.status === "done" ? "w-full bg-stage-deploy" : `w-2/3 ${c.dot}`,
               agent.status === "working" && "animate-pulse"
             )}
           />
@@ -362,15 +367,17 @@ export default function DevPage() {
   const autoScrollRef = useRef(true);
 
   useEffect(() => {
-    apiDevFiles().then(res => setFileTree(res as unknown as FileNode[])).catch(console.error);
-  }, []);
+    if (sessionId) {
+      apiDevFiles(sessionId).then(res => setFileTree(res as unknown as FileNode[])).catch(console.error);
+    }
+  }, [sessionId]);
 
   const handleFileClick = async (node: FileNode) => {
     if (node.type === "folder") return;
     setPreviewLoading(true);
     setPreviewFile({ path: node.path, name: node.name, content: "" });
     try {
-      const content = await apiDevFileContent(node.path);
+      const content = await apiDevFileContent(node.path, sessionId);
       setPreviewFile({ path: node.path, name: node.name, content });
     } catch (e: any) {
       setPreviewFile({ path: node.path, name: node.name, content: `Error: ${e.message}` });
@@ -592,237 +599,160 @@ export default function DevPage() {
       </header>
 
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col pt-14">
-
-        {/* Stats strip */}
-        <div className="border-b border-border bg-surface-1/60">
-          <div className="max-w-screen-2xl mx-auto flex items-stretch">
-            <StatItem icon={Cpu} label={t("devLoops")} value={`${loopCount}x`} color="text-stage-prd" />
-            <StatItem icon={File} label={t("devFilesCount")} value={`${totalFiles}`} color="text-celadon" />
-            <StatItem icon={Activity} label={t("devLinesCount")} value={totalLines.toLocaleString()} color="text-foreground" />
-            <StatItem icon={GitBranch} label={t("devCommitsCount")} value={`${commits.length}`} color="text-stage-deploy" />
-            <StatItem icon={Package} label={t("devDeps")} value="23" color="text-muted-foreground" />
-            <div className="flex-1 flex items-center px-4 py-2">
-              <div className="w-full">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[9px] font-mono text-muted-foreground/40 uppercase tracking-wider">
-                    {!devStarted ? t("devStatusIdle") : isDone ? t("devStatusDone") : paused ? t("devStatusPaused") : t("devStatusWorking")}
-                  </span>
-                  <span className={cn(
-                    "text-[9px] font-mono",
-                    isDone ? "text-celadon" : "text-muted-foreground/50"
-                  )}>{progress}%</span>
-                </div>
-                <div className="h-1 rounded-full bg-surface-3 overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all duration-700",
-                      isDone ? "bg-celadon" : "bg-stage-dev"
-                    )}
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
+      <div className="flex-1 flex overflow-hidden pt-14">
+        {/* Left Column: Chat & Agent Logs */}
+        <aside className="w-80 border-r border-border bg-surface-2 flex flex-col flex-shrink-0">
+          <div className="p-4 border-b border-border bg-background">
+            <div className="flex items-center gap-2 mb-4">
+              <MessageSquare size={14} className="text-primary" />
+              <h2 className="text-xs font-bold uppercase tracking-wider">{t("devAgents")}</h2>
+            </div>
+            <div className="space-y-3">
+              {agents.map((agent) => (
+                <AgentCard key={agent.role} agent={agent} />
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Three-column layout */}
-        <div className="flex-1 flex overflow-hidden max-w-screen-2xl w-full mx-auto">
-
-          {/* ── Left: File tree + project info ──────────────────────────────── */}
-          <aside className="hidden xl:flex flex-col w-56 flex-shrink-0 border-r border-border bg-surface-1/40 overflow-hidden">
-            {/* Project header */}
-            <div className="p-3 border-b border-border">
-              <div className="flex items-center gap-2 mb-1">
-                <GitBranch size={11} className="text-celadon/60 flex-shrink-0" />
-                <span className="text-[10px] font-mono text-celadon truncate">main</span>
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-celadon animate-pulse" />
-              </div>
-              <div className="text-[10px] font-mono text-muted-foreground/50 truncate">{shortIdea}</div>
+          {/* Activity / Chat Log */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="p-3 bg-muted/30 border-b border-border flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">{t("devTerminal")}</span>
+              {devStarted && !isDone && !paused && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[9px] font-mono text-primary font-bold">LIVE</span>
+                </div>
+              )}
             </div>
-
-            {/* Legend */}
-            <div className="px-3 py-2 border-b border-border flex items-center gap-3">
-              <span className="text-[9px] font-mono text-celadon flex items-center gap-1"><span className="font-bold">N</span> {t("newLabel")}</span>
-              <span className="text-[9px] font-mono text-stage-deploy flex items-center gap-1"><span className="font-bold">M</span> {t("modifiedLabel")}</span>
-            </div>
-
-            {/* File tree */}
-            <div className="flex-1 overflow-y-auto py-2">
-              {devStarted ? (
-                fileTree.map((node, i) => (
-                  <FileTreeNode key={i} node={node} onFileClick={handleFileClick} />
-                ))
-              ) : (
-                <div className="px-3 py-4 text-[11px] font-mono text-muted-foreground/50 text-center">
+            <div
+              className="flex-1 overflow-y-auto p-2 space-y-0.5 bg-background/50 font-mono"
+              ref={terminalRef}
+              onScroll={handleTerminalScroll}
+            >
+              {logs.length === 0 ? (
+                <div className="px-2 py-4 text-center text-muted-foreground/40 text-[10px]">
                   {t("devWorkspaceEmpty")}
                 </div>
-              )}
-            </div>
-          </aside>
-
-          {/* ── Center: Terminal + tabs ──────────────────────────────────────── */}
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden border-r border-border">
-            {/* Tab bar */}
-            <div className="flex items-center gap-0 border-b border-border bg-surface-1/60 flex-shrink-0">
-              {(["terminal", "files", "commits"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-4 py-2.5 text-xs font-mono border-r border-border transition-colors",
-                    activeTab === tab
-                      ? "bg-background text-foreground border-b border-b-background"
-                      : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-surface-2/40"
-                  )}
-                >
-                  {tab === "terminal" && <Terminal size={11} />}
-                  {tab === "files" && <FolderOpen size={11} />}
-                  {tab === "commits" && <GitCommit size={11} />}
-                  {{
-                    terminal: t("devTerminal"),
-                    files: t("devFiles"),
-                    commits: t("devCommitsCount"),
-                  }[tab]}
-                </button>
-              ))}
-              {/* Live indicator */}
-              {devStarted && !isDone && !paused && (
-                <div className="ml-auto mr-3 flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-celadon animate-pulse" />
-                  <span className="text-[9px] font-mono text-celadon">LIVE</span>
-                </div>
-              )}
-            </div>
-
-            {/* Terminal tab */}
-            {activeTab === "terminal" && (
-              <div
-                className="flex-1 overflow-y-auto bg-background/60 p-3 font-mono"
-                ref={terminalRef}
-                onScroll={handleTerminalScroll}
-              >
-                <div className="space-y-0.5">
-                  {logs.length === 0 ? (
-                    <div className="flex items-center gap-2 py-2 px-2 text-muted-foreground/60 text-[11px]">
-                      <span className="text-muted-foreground/25 text-[10px] w-12 select-none">$</span>
-                      <span>{t("devWorkspaceEmpty")}</span>
+              ) : (
+                <>
+                  {logs.map((log) => <LogRow key={log.id} log={log} />)}
+                  {!isDone && !paused && (
+                    <div className="flex items-center gap-2 py-0.5 px-2">
+                      <span className="text-primary cursor-blink" />
                     </div>
-                  ) : (
-                    <>
-                      {logs.map((log) => <LogRow key={log.id} log={log} />)}
-                      {!isDone && !paused && (
-                        <div className="flex items-center gap-2 py-0.5 px-2">
-                          <span className="text-muted-foreground/25 text-[10px] w-12 select-none">now</span>
-                          <span className="text-celadon cursor-blink" />
-                        </div>
-                      )}
-                    </>
                   )}
-                </div>
-                <div ref={logsEndRef} />
+                </>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* Middle Column: File Tree */}
+        <aside className="w-64 border-r border-border bg-surface-1 flex flex-col flex-shrink-0">
+          <div className="p-3 border-b border-border bg-background flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider">{t("devFiles")}</span>
+            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-muted-foreground">{totalFiles}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto py-2">
+            {fileTree.length > 0 ? (
+              fileTree.map((node, i) => (
+                <FileTreeNode key={i} node={node} onFileClick={handleFileClick} />
+              ))
+            ) : (
+              <div className="p-8 text-center text-muted-foreground/30 text-[10px] font-mono">
+                {t("devWorkspaceEmpty")}
               </div>
             )}
+          </div>
+          {/* Commit History (minimized) */}
+          <div className="p-3 border-t border-border bg-surface-2">
+            <div className="flex items-center gap-2 mb-2">
+              <GitCommit size={12} className="text-muted-foreground" />
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">{t("devActivity")}</span>
+            </div>
+            <div className="max-h-32 overflow-y-auto">
+              <CommitList commits={commits.slice(-3)} />
+            </div>
+          </div>
+        </aside>
 
-            {/* Files tab */}
-            {activeTab === "files" && (
-              <div className="flex-1 overflow-y-auto bg-background/60 p-4">
-                <div className="text-[10px] font-mono text-muted-foreground/40 uppercase tracking-widest mb-4">
-                  {t("devFilesCount")} · {totalFiles}
-                </div>
-                {devStarted ? (
-                  fileTree.map((node, i) => (
-                    <FileTreeNode key={i} node={node} depth={0} />
-                  ))
+        {/* Right Column: Main Workspace */}
+        <main className="flex-1 flex flex-col bg-background min-w-0">
+          <div className="h-12 border-b border-border bg-surface-1 flex items-center px-2">
+            <button
+              onClick={() => setActiveTab("terminal")}
+              className={cn(
+                "h-9 px-4 text-xs font-bold flex items-center gap-2 rounded-lg transition-all mx-1",
+                activeTab === "terminal" ? "bg-background text-primary shadow-sm" : "text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50"
+              )}
+            >
+              <Terminal size={14} />
+              <span>Full Output</span>
+            </button>
+            {previewFile && (
+              <div className="h-9 px-4 bg-background text-primary text-xs font-bold flex items-center gap-2 rounded-lg shadow-sm border border-primary/20 mx-1">
+                <Code2 size={14} />
+                <span>{previewFile.name}</span>
+                <button onClick={() => setPreviewFile(null)} className="ml-2 w-5 h-5 rounded-md hover:bg-primary/10 flex items-center justify-center transition-colors">
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+            <div className="flex-1" />
+            <div className="px-4 text-[10px] font-mono font-bold text-muted-foreground/40 uppercase tracking-widest">
+              {t("devLinesCount")}: {totalLines.toLocaleString()}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-hidden relative">
+            {previewFile ? (
+              <div className="absolute inset-0 flex flex-col">
+                {previewLoading ? (
+                  <div className="flex-1 flex items-center justify-center bg-background/80">
+                    <Loader2 size={24} className="animate-spin text-primary/40" />
+                  </div>
                 ) : (
-                  <div className="text-[11px] font-mono text-muted-foreground/50 py-4 text-center">
-                    {t("mockLogEmptyTerminal")}
+                  <div className="flex-1 overflow-auto bg-[#f8fafc] p-4 text-sm font-mono leading-relaxed text-foreground/80 selection:bg-primary/20">
+                    <pre className="whitespace-pre-wrap">
+                      {previewFile.content || "// No content"}
+                    </pre>
                   </div>
                 )}
               </div>
-            )}
-
-            {/* Commits tab */}
-            {activeTab === "commits" && (
-              <div className="flex-1 overflow-y-auto bg-background/60 p-4">
-                <div className="text-[10px] font-mono text-muted-foreground/40 uppercase tracking-widest mb-4">
-                  {t("devCommits")} · {commits.length}
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/30 p-12 text-center">
+                <div className="w-16 h-16 rounded-3xl bg-surface-2 border border-border flex items-center justify-center mb-4">
+                  <FileText size={32} />
                 </div>
-                <CommitList commits={[...commits].reverse()} />
+                <p className="text-sm font-mono">{t("mockLogEmptyTerminal")}</p>
+                <p className="text-xs mt-2 max-w-xs">{t("heroSubtitle")}</p>
               </div>
             )}
-          </main>
+          </div>
 
-          {/* ── Right: Agent states + activity ──────────────────────────────── */}
-          <aside className="hidden lg:flex flex-col w-72 flex-shrink-0 overflow-hidden">
-
-            {/* Agent states */}
-            <div className="p-4 border-b border-border">
-              <div className="flex items-center gap-2 mb-3">
-                <Eye size={11} className="text-muted-foreground/40" />
-                <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">
-                  {t("devAgents")}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {agents.map((agent) => (
-                  <AgentCard key={agent.role} agent={agent} />
-                ))}
-              </div>
+          {/* Bottom Stats strip integrated */}
+          <div className="h-8 border-t border-border bg-surface-1 flex items-center px-4 justify-between text-[10px] font-mono text-muted-foreground">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1"><Cpu size={10} /> {loopCount} LOOPS</span>
+              <span className="flex items-center gap-1"><RefreshCw size={10} className={devStarted && !isDone ? "animate-spin-slow" : ""} /> {progress}%</span>
             </div>
-
-            {/* Recent commits */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <GitCommit size={11} className="text-muted-foreground/40" />
-                <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-widest">
-                  {t("devActivity")}
-                </span>
-              </div>
-              <CommitList commits={[...commits].reverse().slice(0, 5)} />
+            <div className="flex items-center gap-4">
+              <span className="text-primary font-bold">{!devStarted ? "READY" : isDone ? "COMPLETED" : "EXECUTING"}</span>
             </div>
-
-            {/* Bottom: deploy CTA */}
-            <div className="p-4 border-t border-border bg-surface-1/40">
-              {isDone ? (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 size={13} className="text-celadon" />
-                    <span className="text-xs font-mono text-celadon font-semibold">{t("devStatusDone")}</span>
-                  </div>
-                  <div className="text-[10px] font-mono text-muted-foreground/50 leading-relaxed">
-                    {commits.length} {t("devCommitsCount")} · {totalFiles} {t("devFilesCount")} · {totalLines.toLocaleString()} {t("devLinesCount")}
-                  </div>
-                  <button
-                    onClick={() => navigate("/deploy", { state: { idea, sessionId } })}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-celadon text-primary-foreground text-xs font-mono font-semibold hover:bg-celadon-glow transition-colors shadow-glow"
-                  >
-                    <Rocket size={12} />
-                    <span>{t("devDeployLong")}</span>
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Loader2 size={11} className="text-stage-dev animate-spin" />
-                    <span className="text-[10px] font-mono text-stage-dev">
-                      {paused ? t("devStatusPaused") : t("devStatusWorking")}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => navigate("/deploy", { state: { idea, sessionId } })}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-celadon/30 text-celadon text-xs font-mono hover:bg-celadon/8 transition-colors"
-                  >
-                    <SkipForward size={11} />
-                    <span>{t("devSkipDeploy")}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
+          </div>
+        </main>
       </div>
+      {/* Footer */}
+      <footer className="h-10 border-t border-border bg-background flex items-center px-6 justify-between flex-shrink-0">
+        <div className="flex items-center gap-2 opacity-50">
+          <Zap size={12} className="text-primary" />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">Celadon Studio</span>
+        </div>
+        <div className="text-[9px] text-muted-foreground uppercase tracking-widest">
+          v0.1.3 · {new Date().getFullYear()}
+        </div>
+      </footer>
     </div>
   );
 }

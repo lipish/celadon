@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::convert::Infallible;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 
@@ -325,31 +325,67 @@ fn build_file_tree(dir: &std::path::Path, base_dir: &std::path::Path) -> Vec<Fil
     nodes
 }
 
-async fn dev_files(State(_state): State<ApiState>) -> Json<Vec<FileNode>> {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    Json(build_file_tree(&cwd, &cwd))
+async fn dev_files(
+    State(state): State<ApiState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<Vec<FileNode>> {
+    let session_id = params.get("session_id");
+    let base_dir = if let Some(sid) = session_id {
+        if let Ok(service) = make_service(&state, None).await {
+            if let Some(session) = service.state.sessions.get(sid) {
+                service.workspace_dir(&session.project_id)
+            } else {
+                return Json(vec![]);
+            }
+        } else {
+            return Json(vec![]);
+        }
+    } else {
+        // Fallback for overview/projects page if needed, 
+        // but for security we shouldn't default to CWD anymore.
+        return Json(vec![]);
+    };
+
+    if !base_dir.exists() {
+        let _ = fs::create_dir_all(&base_dir);
+    }
+    Json(build_file_tree(&base_dir, &base_dir))
 }
 
 #[derive(Deserialize)]
 pub struct FileQuery {
     path: String,
+    session_id: Option<String>,
 }
 
 async fn dev_file_content(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Query(query): Query<FileQuery>,
 ) -> impl IntoResponse {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let full_path = cwd.join(&query.path);
+    let base_dir = if let Some(sid) = &query.session_id {
+        if let Ok(service) = make_service(&state, None).await {
+            if let Some(session) = service.state.sessions.get(sid) {
+                service.workspace_dir(&session.project_id)
+            } else {
+                return (StatusCode::NOT_FOUND, "Session not found".to_string()).into_response();
+            }
+        } else {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Service error".to_string()).into_response();
+        }
+    } else {
+        return (StatusCode::BAD_REQUEST, "session_id required".to_string()).into_response();
+    };
+
+    let full_path = base_dir.join(&query.path);
     
-    // Security check: ensure the path is within cwd to prevent path traversal
-    if !full_path.starts_with(&cwd) {
-        return (axum::http::StatusCode::FORBIDDEN, "Access denied".to_string());
+    // Security check: ensure the path is within project workspace
+    if !full_path.starts_with(&base_dir) {
+        return (StatusCode::FORBIDDEN, "Access denied".to_string()).into_response();
     }
 
     match std::fs::read_to_string(&full_path) {
-        Ok(content) => (axum::http::StatusCode::OK, content),
-        Err(e) => (axum::http::StatusCode::NOT_FOUND, format!("Could not read file: {}", e)),
+        Ok(content) => (StatusCode::OK, content).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, format!("Could not read file: {}", e)).into_response(),
     }
 }
 

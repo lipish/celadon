@@ -35,5 +35,5 @@ pub fn print_json(value: &Value) -> AppResult<()> {
 }
 
 pub fn storage_dir() -> PathBuf {
-    Path::new(".celadon").to_path_buf()
+    std::env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf()).join(".celadon")
 }
